@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { Container } from "@/components/ui/Container";
-import { ButtonLink } from "@/components/ui/Button";
+import { CartView } from "@/components/cart/CartView";
+import { resolveMenuPhotos } from "@/lib/data/photos";
+import { getMenuItems } from "@/lib/data/repository";
 
-export const metadata: Metadata = { title: "Cart" };
+export const metadata: Metadata = { title: "Your cart" };
 
-/** Placeholder. The real cart experience is built in a later stage. */
-export default function CartPage() {
+/**
+ * Server shell for the cart.
+ *
+ * The cart itself must be a client component — it reads the store — but photo
+ * resolution touches the filesystem, and mapping a line back to its category
+ * (for the placeholder glyph) needs the menu. Both are resolved here and passed
+ * down, so the client never has to fetch anything.
+ */
+export default async function CartPage() {
+  const items = await getMenuItems();
+  const categoryByItemId = Object.fromEntries(
+    items.map((item) => [item.id, item.categoryId]),
+  );
+
   return (
-    <Container className="py-20">
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
-        Cart
-      </h1>
-      <p className="mt-3 max-w-prose text-ink-muted">
-        This page is scaffolded but not yet built. The foundation it depends on —
-        menu data, pricing, and cart state — is already in place.
-      </p>
-      <ButtonLink href="/" variant="secondary" className="mt-6">
-        Back home
-      </ButtonLink>
-    </Container>
+    <CartView photoMap={resolveMenuPhotos()} categoryByItemId={categoryByItemId} />
   );
 }

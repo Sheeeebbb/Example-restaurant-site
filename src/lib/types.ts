@@ -137,13 +137,20 @@ export interface CartLine {
 export type FulfillmentType = "delivery" | "pickup";
 export type TimingMode = "asap" | "scheduled";
 
+/**
+ * A delivery address.
+ *
+ * Street and house number are separate fields rather than one free-text line:
+ * couriers, address-validation services and delivery APIs all want them apart,
+ * and splitting a combined line back out reliably is not possible.
+ */
 export interface Address {
-  line1: string;
-  line2?: string;
-  city: string;
+  street: string;
+  houseNumber: string;
   postalCode: string;
+  city: string;
   /** "Buzzer 3B", "leave with the doorman". */
-  deliveryNotes?: string;
+  deliveryInstructions?: string;
 }
 
 /**

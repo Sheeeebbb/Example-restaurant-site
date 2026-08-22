@@ -3,15 +3,15 @@
 A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
 salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 3 of 8 — menu and product customisation.** The architecture,
-design system, domain model, pricing engine, homepage, full menu and the
-product customiser are in place. The cart page and checkout are built in later
-stages; see [Roadmap](#roadmap).
+**Status: Stage 4 of 8 — cart and order configuration.** The architecture,
+design system, domain model, pricing engine, homepage, menu, product
+customiser, cart and order configuration are in place. Payment is the next
+stage; see [Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 93 unit tests over pricing, scheduling, cart and customisation
+npm test         # 125 unit tests over pricing, scheduling, cart, customisation and validation
 npm run build
 ```
 
@@ -87,6 +87,15 @@ Only the promo **code** is persisted, never the resolved discount. A stored
 discount is a number a customer could edit in localStorage and carry to
 checkout.
 
+### 4a. The delivery fee is one number
+
+`RESTAURANT.fees.deliveryFee` is the standard fee and the single thing to change
+when delivery pricing changes. A postal code that matches a `DELIVERY_ZONES`
+entry may override it with a zone-specific fee and minimum order.
+
+The flat default matters: without one, the cart would read "free delivery"
+until an address was entered, and then take it back at checkout.
+
 ### 5. Payments sit behind an adapter
 
 Checkout depends on the `PaymentProvider` interface, never on a processor.
@@ -106,9 +115,15 @@ row. Sorting first makes the id independent of the order the boxes were ticked.
 
 ### 7. Personal data stays out of localStorage
 
-The cart, fulfilment choice, and promo code persist across refreshes. Customer
-name, phone, email, and address do not — they live in component state during
-checkout and go straight onto the order.
+Two stores, deliberately different. The **cart** (`lib/cart/store.ts`) uses
+localStorage: a basket is worth keeping for days, and a list of burgers
+identifies nobody. The **order draft** (`lib/order/draft-store.ts`) holds a name,
+phone number, email and home address, so it uses **sessionStorage** and is gone
+when the tab closes. It persists at all only to survive the hop from cart to
+checkout and a stray refresh.
+
+The postal code is the one exception, kept in the cart so delivery can be priced
+before the address form — a district is not a person.
 
 ---
 
@@ -124,8 +139,8 @@ src/
 │   ├── privacy|terms/          What the app actually does with data
 │   ├── menu/                   Menu listing + filtering
 │   │   └── [slug]/             Product detail + customiser
-│   ├── cart/                   Cart review                      (stage 4)
-│   ├── checkout/               Fulfilment → details → payment   (stage 5)
+│   ├── cart/                   Cart + order configuration
+│   ├── checkout/               Order review (payment in stage 5)
 │   ├── order/track/            Order status                     (stage 6)
 │   ├── admin/                  Staff area                       (stage 7)
 │   └── api/                    Route handlers                   (stage 5+)
@@ -139,7 +154,10 @@ src/
 │   │                           AddToCartButton, CategoryFilter,
 │   │                           ProductCustomizer, OptionGroupField,
 │   │                           QuantityStepper
-│   └── cart/                   CartButton, CartHydration
+│   ├── cart/                   CartView, CartLineRow, OrderSummary,
+│   │                           PromoCodeForm, FulfillmentToggle,
+│   │                           TimingPicker, CustomerForm, EmptyCart
+│   └── checkout/               CheckoutReview
 │
 └── lib/
     ├── types.ts                The domain model. Start here.
@@ -157,6 +175,9 @@ src/
     │   ├── customization.ts    ← customiser rules (pure, UI-free)
     │   ├── totals.ts           ← the pricing engine (pure, shared client/server)
     │   └── selectors.ts        Derived cart values
+    ├── order/
+    │   ├── validation.ts       ← order-config rules (pure, UI-free)
+    │   └── draft-store.ts      Customer details (sessionStorage)
     ├── fulfillment/
     │   ├── delivery.ts         Postal code → zone, fee, minimum
     │   └── scheduling.ts       Opening hours, lead times, ASAP vs scheduled slots
@@ -185,6 +206,9 @@ functional. So, on the homepage today:
 | **Cart badge** | Live count from the store, persisted across reloads. |
 | **Menu filtering** | Real URLs (`/menu?category=burgers`) rendered on the server — shareable, back-button correct, and working before JS loads. |
 | **Product customiser** | Live price as options change, quantity, special instructions, and required-option validation. Every choice reaches the cart. |
+| **Cart** | Line quantities, removal, and live totals. Every figure is derived from the lines on each render — nothing is stored. |
+| **Promo codes** | `WELCOME20` takes 20% off. Applying a second code replaces the first; the cart holds one code, so discounts cannot stack. |
+| **Order configuration** | Delivery or pickup, ASAP or a real slot from opening hours, and contact details — all validated before you can continue. |
 
 Two guards keep this honest. A unit test asserts every featured item is
 genuinely quick-addable, so no card can ship an "Add to cart" button that
@@ -269,8 +293,8 @@ Targeting WCAG 2.2 AA:
 | **1. Foundation** | Stack, design system, domain model, data layer, cart engine, fulfilment rules, payment adapter, app shell | ✅ **Done** |
 | **2. Visual foundation & homepage** | Brand, navigation, hero, featured menu with working add-to-cart, promo banner, why-us, testimonials, footer, legal pages | ✅ **Done** |
 | **3. Menu & customisation** | Menu page, URL-driven category filtering, product detail pages, generic option customiser, quantity, special instructions | ✅ **Done** |
-| **4. Cart** | Cart page, line editing, remove, promo entry, delivery/pickup toggle, mobile sticky bar | Next |
-| **5. Checkout** | Fulfilment step, address + zone validation, ASAP vs scheduled slots, customer details, mock payment, `/api/checkout` recomputing totals server-side | |
+| **4. Cart & order configuration** | Cart with line editing, promo codes, delivery/pickup, ASAP or scheduled timing, customer details, validation | ✅ **Done** |
+| **5. Checkout & payment** | Mock payment through the existing provider adapter, `/api/checkout` recomputing totals server-side, order creation | Next |
 | **6. Confirmation & tracking** | Order confirmation, reference lookup, status timeline | |
 | **7. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | |
 | **8. Integration** | Stripe behind the existing adapter, database behind the existing repository, admin auth in Proxy | |

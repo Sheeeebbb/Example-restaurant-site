@@ -201,6 +201,118 @@ describe("calculateTotals", () => {
   });
 });
 
+describe("the flat delivery fee", () => {
+  it("applies before a postal code is known, rather than reading as free", () => {
+    const totals = calculateTotals({
+      lines: [line(1000)],
+      fulfillmentType: "delivery",
+      zone: null,
+      promotion: null,
+    });
+    expect(totals.deliveryFee).toBe(RESTAURANT.fees.deliveryFee);
+  });
+
+  it("is overridden by a matched zone", () => {
+    const pricier: DeliveryZone = { ...zone, deliveryFee: 449 };
+    const totals = calculateTotals({
+      lines: [line(1000)],
+      fulfillmentType: "delivery",
+      zone: pricier,
+      promotion: null,
+    });
+    expect(totals.deliveryFee).toBe(449);
+  });
+
+  it("still charges nothing for pickup, zone or not", () => {
+    for (const z of [null, zone]) {
+      expect(
+        calculateTotals({
+          lines: [line(1000)],
+          fulfillmentType: "pickup",
+          zone: z,
+          promotion: null,
+        }).deliveryFee,
+      ).toBe(0);
+    }
+  });
+
+  it("is waived by the free-delivery threshold even with no zone", () => {
+    const totals = calculateTotals({
+      lines: [line(RESTAURANT.fees.freeDeliveryThreshold)],
+      fulfillmentType: "delivery",
+      zone: null,
+      promotion: null,
+    });
+    expect(totals.deliveryFee).toBe(0);
+  });
+});
+
+describe("discounts cannot be double-counted", () => {
+  it("applies a percentage once, not once per line", () => {
+    const totals = calculateTotals({
+      lines: [line(1000), line(1000), line(1000)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    });
+    expect(totals.subtotal).toBe(3000);
+    expect(totals.discount).toBe(600);
+  });
+
+  it("gives the same answer for one line of three as three lines of one", () => {
+    const asOneLine = calculateTotals({
+      lines: [line(1000, 3)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    });
+    const asThreeLines = calculateTotals({
+      lines: [line(1000), line(1000), line(1000)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    });
+    expect(asOneLine).toEqual(asThreeLines);
+  });
+
+  it("is a pure function of its inputs — recomputing never compounds", () => {
+    const input = {
+      lines: [line(1995, 2)],
+      fulfillmentType: "delivery" as const,
+      zone,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    };
+    const first = calculateTotals(input);
+    const again = calculateTotals(input);
+    const third = calculateTotals(input);
+    expect(again).toEqual(first);
+    expect(third).toEqual(first);
+  });
+
+  it("rounds a 20% discount on an odd subtotal to the nearest cent", () => {
+    const totals = calculateTotals({
+      lines: [line(1395)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    });
+    // 1395 * 0.20 = 279 exactly.
+    expect(totals.discount).toBe(279);
+    expect(totals.total).toBe(1116);
+  });
+
+  it("rounds rather than truncates a fractional discount", () => {
+    const totals = calculateTotals({
+      lines: [line(999)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: promo({ kind: "percentage", value: 20 }),
+    });
+    // 999 * 0.20 = 199.8 -> 200
+    expect(totals.discount).toBe(200);
+  });
+});
+
 describe("deliveryShortfall", () => {
   it("reports how far below a zone minimum the basket is", () => {
     expect(deliveryShortfall([line(600)], "delivery", zone)).toBe(400);

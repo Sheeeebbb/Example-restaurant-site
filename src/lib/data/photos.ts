@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { MENU_ITEMS } from "./menu";
 
 /**
  * Resolves a menu image path to a real file, or null.
@@ -20,4 +21,20 @@ export function resolvePhoto(src: string | undefined | null): string | null {
   // Refuse to walk outside /public.
   if (normalized.includes("..")) return null;
   return existsSync(path.join(PUBLIC_DIR, normalized)) ? src : null;
+}
+
+/**
+ * Every menu image path, resolved once.
+ *
+ * The cart is a client component — it reads the store — but photo resolution
+ * touches the filesystem and must stay on the server. A server page computes
+ * this map and hands it down, so cart lines can render real photography
+ * without the client ever needing to ask whether a file exists.
+ */
+export function resolveMenuPhotos(): Record<string, string | null> {
+  const map: Record<string, string | null> = {};
+  for (const item of MENU_ITEMS) {
+    map[item.image.src] = resolvePhoto(item.image.src);
+  }
+  return map;
 }

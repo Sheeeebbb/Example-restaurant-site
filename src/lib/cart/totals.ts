@@ -25,7 +25,10 @@ import { clampToZero, percentOf, vatWithin } from "../money";
 export interface TotalsInput {
   lines: CartLine[];
   fulfillmentType: FulfillmentType;
-  /** The matched zone for a delivery order; null for pickup or an uncovered address. */
+  /**
+   * The matched zone for a delivery order, or null when no postal code has been
+   * entered yet — in which case the flat configured fee applies.
+   */
   zone: DeliveryZone | null;
   promotion: Promotion | null;
 }
@@ -46,8 +49,11 @@ export function baseDeliveryFee(
   fulfillmentType: FulfillmentType,
   zone: DeliveryZone | null,
 ): Cents {
-  if (fulfillmentType === "pickup" || !zone) return 0;
-  return zone.deliveryFee;
+  if (fulfillmentType === "pickup") return 0;
+  // The configured flat fee is the default; a matched zone may override it.
+  // Falling back to 0 here would show "free delivery" in the cart before an
+  // address is known, then quietly add a charge at checkout.
+  return zone?.deliveryFee ?? RESTAURANT.fees.deliveryFee;
 }
 
 export function calculateTotals({

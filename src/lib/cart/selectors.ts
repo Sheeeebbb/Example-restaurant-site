@@ -2,8 +2,14 @@
 
 import { useMemo } from "react";
 import { useCartStore } from "./store";
-import { calculateTotals, countItems, deliveryShortfall } from "./totals";
-import { findZone } from "../fulfillment/delivery";
+import {
+  baseDeliveryFee,
+  calculateTotals,
+  countItems,
+  deliveryFeeWaiver,
+  deliveryShortfall,
+} from "./totals";
+import { findZone, normalizePostalCode } from "../fulfillment/delivery";
 import { validatePromotion } from "../data/promotions";
 import type { OrderTotals, Promotion } from "../types";
 
@@ -29,7 +35,16 @@ export interface CartSummary {
   promotionError: string | null;
   /** How far below the zone's minimum order the basket is; 0 when it qualifies. */
   shortfall: number;
+  /**
+   * False ONLY when a complete postal code has been entered and no zone covers
+   * it. Before an address exists we do not yet know, and claiming "we don't
+   * deliver here" on an empty field would be wrong.
+   */
   deliverable: boolean;
+  /** The fee before any waiver, so the summary can show "4,49 € waived". */
+  deliveryFeeBeforeWaiver: number;
+  /** Why delivery is free, if it is — for an explanatory line in the summary. */
+  waiver: "threshold" | "promotion" | null;
   itemCount: number;
 }
 
@@ -58,12 +73,18 @@ export function useCartSummary(): CartSummary {
       }
     }
 
+    const input = { lines, fulfillmentType, zone, promotion };
+    const postalCodeComplete = normalizePostalCode(postalCode).length >= 5;
+
     return {
-      totals: calculateTotals({ lines, fulfillmentType, zone, promotion }),
+      totals: calculateTotals(input),
       promotion,
       promotionError,
       shortfall: deliveryShortfall(lines, fulfillmentType, zone),
-      deliverable: fulfillmentType === "pickup" || zone !== null,
+      deliverable:
+        fulfillmentType === "pickup" || !postalCodeComplete || zone !== null,
+      deliveryFeeBeforeWaiver: baseDeliveryFee(fulfillmentType, zone),
+      waiver: deliveryFeeWaiver(input),
       itemCount: countItems(lines),
     };
   }, [lines, fulfillmentType, postalCode, promotionCode]);

@@ -29,6 +29,16 @@ export const RESTAURANT = {
    */
   locale: "de-DE",
   currency: "EUR",
+
+  /**
+   * Locale for dates and times the customer READS.
+   *
+   * `locale` above formats money the way this market writes it ("12,50 €").
+   * Weekday and month names are words, though, and formatting them with the
+   * same locale drops "Samstag" into otherwise English copy. Times still come
+   * out 24-hour, which is right for Berlin either way.
+   */
+  dateLocale: "en-GB",
   /** IANA zone. All slot generation is anchored to the restaurant, not the customer. */
   timeZone: "Europe/Berlin",
 
@@ -84,6 +94,19 @@ export const RESTAURANT = {
      * rather than to be added on top — see `lib/cart/totals.ts`.
      */
     taxRatePercent: 19,
+
+    /**
+     * The standard delivery fee — the single number to change when delivery
+     * pricing changes.
+     *
+     * It applies to every delivery order unless the customer's postal code
+     * matches a `DELIVERY_ZONES` entry, which may override it. Having a flat
+     * default matters for the cart: without one, the fee would read as free
+     * until an address was entered, which is a promise we would then have to
+     * take back at checkout.
+     */
+    deliveryFee: 299 as Cents,
+
     /** Delivery is free at or above this subtotal, before discounts. */
     freeDeliveryThreshold: 2500 as Cents,
   },

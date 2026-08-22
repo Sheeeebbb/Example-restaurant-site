@@ -88,7 +88,7 @@ function roundUpToInterval(date: Date, interval: number): Date {
 }
 
 function formatTime(date: Date): string {
-  return new Intl.DateTimeFormat(RESTAURANT.locale, {
+  return new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
