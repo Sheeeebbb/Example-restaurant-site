@@ -82,7 +82,15 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
           </div>
         ) : (
           <div className="space-y-16">
-            {sections.map(({ category, items: sectionItems }) => (
+            {/*
+              `priorityCutoff` counts across the whole page, not per section.
+              Passing `index < 3` inside each section made the first three cards
+              of all six categories eager — eighteen of twenty-six photographs
+              fetched before the customer scrolled, most of them far below the
+              fold. Only the first row actually competes with the largest
+              contentful paint.
+            */}
+            {sections.map(({ category, items: sectionItems }, sectionIndex) => (
               <section key={category.id} aria-labelledby={`cat-${category.slug}`}>
                 <div className="max-w-xl">
                   <h2
@@ -100,7 +108,7 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
                       <MenuItemCard
                         item={item}
                         photoSrc={photoSrc}
-                        priority={index < 3}
+                        priority={sectionIndex === 0 && index < 3}
                       />
                     </li>
                   ))}

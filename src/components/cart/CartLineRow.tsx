@@ -38,6 +38,8 @@ export function CartLineRow({
         aria-hidden="true"
         className="relative h-24 w-24 shrink-0 overflow-hidden rounded-card border border-line bg-surface-sunken sm:h-28 sm:w-28"
       >
+        {/* Decorative for the same reason as the menu card: the line's name is
+            an adjacent link to the same dish. */}
         <FoodImage
           src={photoSrc}
           alt=""

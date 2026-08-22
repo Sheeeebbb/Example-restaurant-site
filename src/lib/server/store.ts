@@ -19,6 +19,16 @@ import { MENU_ITEMS } from "../data/menu";
  * Next's dev server re-evaluates modules on hot reload. A plain module-level
  * `const` would be re-created on every edit, silently wiping every order placed
  * during a session. Caching on globalThis keeps it alive across reloads.
+ *
+ * ── The trade-off, and it bites in development ──────────────────────────────
+ * The menu is seeded ONCE, the first time the store is touched. Editing
+ * `data/menu.ts` therefore has no effect on a running dev server — it keeps
+ * serving the copy it seeded at boot, and hot reload will not refresh it. This
+ * is not obvious: renaming an image path and seeing the old one still served
+ * looks like a rendering bug rather than a stale cache.
+ *
+ * Restart the dev server after editing menu data. In production the process
+ * starts with the current module, so this only affects development.
  */
 
 interface ServerStore {

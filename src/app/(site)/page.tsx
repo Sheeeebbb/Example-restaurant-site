@@ -5,6 +5,7 @@ import { WhyChooseUs } from "@/components/home/WhyChooseUs";
 import { Testimonials } from "@/components/home/Testimonials";
 import { getMenuItems } from "@/lib/data/repository";
 import { resolvePhoto } from "@/lib/data/photos";
+import { HERO_BRIEF } from "@/lib/data/photography";
 
 /**
  * Homepage.
@@ -30,7 +31,7 @@ export default async function HomePage() {
       <Hero
         showcase={showcase}
         showcasePhoto={showcase ? resolvePhoto(showcase.image.src) : null}
-        heroPhoto={resolvePhoto("/menu/hero.jpg")}
+        heroPhoto={resolvePhoto(`/menu/${HERO_BRIEF.file}`)}
       />
       <FeaturedMenu items={cards} />
       <PromoBanner />

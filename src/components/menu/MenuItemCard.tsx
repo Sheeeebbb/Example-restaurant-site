@@ -51,9 +51,16 @@ export function MenuItemCard({
         aria-hidden="true"
         className="relative block aspect-[4/3] overflow-hidden bg-surface-sunken"
       >
+        {/*
+          The frame is `aria-hidden` because the dish name beside it links to
+          the same place, so alt text here would announce the destination twice.
+          The meaningful description lives on `item.image.alt` and is announced
+          on the product page, where the photograph is the content rather than a
+          thumbnail beside its own label.
+        */}
         <FoodImage
           src={photoSrc}
-          alt={item.image.alt}
+          alt=""
           categoryId={item.categoryId}
           priority={priority}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

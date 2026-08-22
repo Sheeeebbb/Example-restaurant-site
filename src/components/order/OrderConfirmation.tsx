@@ -6,6 +6,7 @@ import { Container } from "@/components/ui/Container";
 import { OrderTimeline } from "./OrderTimeline";
 import { useOrderStore } from "@/lib/order/order-store";
 import { deriveStatus, statusLabel } from "@/lib/order/status";
+import { FoodImage } from "@/components/menu/FoodImage";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -21,7 +22,17 @@ import type { Order, OrderStatus } from "@/lib/types";
  * from `createdAt` rather than counted up from mount, a refresh lands on the
  * same stage the customer was already looking at.
  */
-export function OrderConfirmation({ reference }: { reference: string }) {
+export function OrderConfirmation({
+  reference,
+  photoMap,
+  categoryByItemId,
+}: {
+  reference: string;
+  /** Menu image path -> resolved file, or null. Resolved on the server. */
+  photoMap: Record<string, string | null>;
+  /** Item id -> category, so the fallback glyph matches the dish. */
+  categoryByItemId: Record<string, string>;
+}) {
   const orders = useOrderStore((state) => state.orders);
   const hasHydrated = useOrderStore((state) => state.hasHydrated);
 
@@ -268,8 +279,27 @@ export function OrderConfirmation({ reference }: { reference: string }) {
             </h3>
             <ul className="mt-4 divide-y divide-line">
               {order.lines.map((line) => (
-                <li key={line.lineId} className="flex justify-between gap-4 py-3">
-                  <div className="min-w-0">
+                <li key={line.lineId} className="flex items-start gap-3 py-3">
+                  {/*
+                    Decorative: the dish name sits immediately beside it. The
+                    thumbnail is here so the food the customer chose is still
+                    visible at the end of the journey — the confirmation was
+                    text-only, which made the last screen the only one in the
+                    flow with no imagery at all.
+                  */}
+                  <span
+                    aria-hidden="true"
+                    className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-sunken"
+                  >
+                    <FoodImage
+                      src={photoMap[line.imageSrc] ?? null}
+                      alt=""
+                      categoryId={categoryByItemId[line.menuItemId] ?? "cat-burgers"}
+                      sizes="48px"
+                      glyphClassName="h-5 w-5"
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink">
                       {line.quantity} × {line.name}
                     </p>
