@@ -12,6 +12,11 @@ import { FoodGlyph, glyphForCategory } from "./FoodGlyph";
  * nothing, and announcing "Classic cheeseburger" for a generic icon would
  * describe a photo that isn't there. The dish name sits next to it in the card
  * regardless.
+ *
+ * IT IS A FALLBACK, NOT THE DESIGN. Every dish has a photograph brief in
+ * `lib/data/photography.ts`; the moment the matching file appears in
+ * `public/menu/`, `resolvePhoto()` finds it and the real photograph renders
+ * here instead, with no code change. Run `npm run photos:check` for coverage.
  */
 export function FoodImage({
   src,
@@ -38,7 +43,19 @@ export function FoodImage({
         fill
         sizes={sizes}
         priority={priority}
-        className={`object-cover ${className}`}
+        /*
+         * Above-the-fold photographs are fetched eagerly; everything below is
+         * lazy, so a twenty-six card menu does not pull twenty-six photographs
+         * before the customer has scrolled.
+         */
+        loading={priority ? undefined : "lazy"}
+        /*
+         * `object-cover` with a fixed aspect-ratio frame is what stops a
+         * portrait shot from being squashed into a landscape card — it crops
+         * instead of distorting. `object-center` keeps the crop on the dish,
+         * which the house style centres in frame.
+         */
+        className={`object-cover object-center ${className}`}
       />
     );
   }

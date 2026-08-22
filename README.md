@@ -406,19 +406,27 @@ before a real processor arrives.
 
 ## Photography
 
-**There are no real photographs in this repository yet**, and the food is meant
-to be the visual focus — so this is the most valuable thing to add next.
+**There are still no photographs in this repository.** This environment's egress
+policy blocks every image host, so none could be downloaded — see
+[public/menu/README.md](public/menu/README.md) for how to add them.
 
-`resolvePhoto()` checks `public/menu/` on the server at render time. Drop
-`urban-classic.jpg` (and the other filenames listed in `lib/data/menu.ts`) into
-that folder and those cards start rendering optimised `next/image` photography
-on the next build — **no code change, no manifest to update**. `hero.jpg` fills
-the hero panel the same way.
+Everything around them is ready:
 
-Until then, cards render a designed placeholder: a warm wash and a per-category
-line glyph, marked `aria-hidden` because it depicts nothing. No broken images
-and no 404s — a missing file is never requested.
+- **`src/lib/data/photography.ts`** — a brief per dish (subject, camera angle,
+  ingredients that must appear, and the ones that must *not*), a shared
+  `HOUSE_STYLE` shoot specification, and a `credit` slot recording source,
+  licence and photographer so temporary stock can later be swapped for the
+  restaurant's own work. A test keeps it one-to-one with the menu.
+- **`npm run photos:check`** — coverage report; names the exact files still
+  missing and flags any over 400KB.
+- **The pipeline** — `resolvePhoto()` finds a file the moment it lands in
+  `public/menu/`, and it renders through `next/image` as AVIF or WebP in a
+  fixed 4:3 frame with `object-cover`. Verified with test images: a portrait
+  source crops rather than distorting, and a 13KB JPEG served 1.2KB of AVIF.
+- **Attribution** — `photoCredit()` renders a credit under the photograph only
+  where the licence requires one.
 
-Guidance for the shoot: 4:3, at least 800px wide, warm natural light, neutral
-surroundings so the food supplies the colour. Write real `alt` text in
-`menu.ts` describing the dish, not the photograph.
+Until files exist, cards render a fallback tile — a warm wash and a per-category
+glyph on a ringed disc, marked `aria-hidden` because it depicts nothing. It is a
+fallback, not the design: no broken images, no 404s, a missing file is never
+requested.

@@ -453,7 +453,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Salted Caramel Brownie",
     description: "Warm, fudgy, salted caramel, sea salt.",
     basePrice: 695,
-    image: { src: "/menu/brownie.jpg", alt: "Warm brownie with ice cream" },
+    image: { src: "/menu/brownie.jpg", alt: "Warm fudgy brownie with salted caramel and sea salt" },
     tags: ["vegetarian"],
     allergens: ["gluten", "milk", "egg"],
     available: true,

@@ -7,6 +7,7 @@ import { FoodImage } from "@/components/menu/FoodImage";
 import { ProductCustomizer } from "@/components/menu/ProductCustomizer";
 import { getCategoryById, getMenuItemBySlug } from "@/lib/data/repository";
 import { resolvePhoto } from "@/lib/data/photos";
+import { photoCredit } from "@/lib/data/photography";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -43,6 +44,10 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
 
   const category = await getCategoryById(item.categoryId);
   const photoSrc = resolvePhoto(item.image.src);
+  // Only set when the photograph's licence obliges us to display a credit —
+  // most permissive stock licences do not, and the restaurant's own photography
+  // never will. Rendering it unconditionally would clutter every dish.
+  const credit = photoSrc ? photoCredit(item.slug) : null;
 
   return (
     <Container className="py-8 sm:py-12">
@@ -98,6 +103,25 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
               </div>
             )}
           </div>
+
+          {credit && (
+            <p className="mt-2 text-xs text-ink-subtle">
+              Photograph:{" "}
+              {credit.url ? (
+                <a
+                  href={credit.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline underline-offset-4 hover:text-ink"
+                >
+                  {credit.photographer ?? credit.source}
+                </a>
+              ) : (
+                (credit.photographer ?? credit.source)
+              )}{" "}
+              · {credit.licence}
+            </p>
+          )}
 
         </div>
 
