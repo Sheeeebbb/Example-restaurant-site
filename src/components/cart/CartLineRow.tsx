@@ -17,11 +17,9 @@ import type { CartLine } from "@/lib/types";
 export function CartLineRow({
   line,
   photoSrc,
-  categoryId,
 }: {
   line: CartLine;
   photoSrc: string | null;
-  categoryId: string;
 }) {
   const setQuantity = useCartStore((state) => state.setQuantity);
   const removeLine = useCartStore((state) => state.removeLine);
@@ -41,9 +39,7 @@ export function CartLineRow({
         <FoodImage
           src={photoSrc}
           alt=""
-          categoryId={categoryId}
           sizes="112px"
-          glyphClassName="h-8 w-8"
         />
       </Link>
 

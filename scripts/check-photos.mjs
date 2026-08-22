@@ -20,6 +20,11 @@ const entries = [...source.matchAll(/brief\("([^"]+)",\s*"([^"]+)"/g)].map(
   ([, slug, file]) => ({ slug, file }),
 );
 
+// The hero is not a dish, so it is not in PHOTO_BRIEFS — but it is part of the
+// same shoot and the homepage looks unfinished without it, so it is counted.
+const hero = source.match(/HERO_BRIEF[\s\S]*?file:\s*"([^"]+)"/);
+if (hero) entries.push({ slug: "__hero", file: hero[1] });
+
 if (entries.length === 0) {
   console.error("No photo briefs found — has photography.ts changed shape?");
   process.exit(1);

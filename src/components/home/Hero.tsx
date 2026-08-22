@@ -71,17 +71,15 @@ export function Hero({
             </dl>
           </div>
 
-          {/* Decorative composition — the dish it shows is also linked from the
-              featured strip below, so nothing here is the only route to it. */}
+          {/* The dish it shows is also linked from the featured strip below,
+              so nothing here is the only route to it. */}
           <div className="relative motion-safe:animate-[fade-up_0.6s_0.1s_ease-out_both]">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] border border-line bg-surface-sunken shadow-overlay lg:aspect-[4/5]">
               <FoodImage
                 src={heroPhoto}
-                alt=""
-                categoryId="cat-burgers"
+                alt="Urban Table cheeseburger and skin-on fries served on a board"
                 priority
                 sizes="(max-width: 1024px) 100vw, 45vw"
-                glyphClassName="h-32 w-32 sm:h-40 sm:w-40"
               />
             </div>
 
@@ -91,9 +89,7 @@ export function Hero({
                   <FoodImage
                     src={showcasePhoto}
                     alt=""
-                    categoryId={showcase.categoryId}
                     sizes="56px"
-                    glyphClassName="h-7 w-7"
                   />
                 </div>
                 <div className="min-w-0">

@@ -6,15 +6,16 @@
  * file came from. It exists so that:
  *
  *   • whoever sources or shoots the images knows exactly what each frame needs,
- *     and the set comes back looking like one session rather than twenty-six;
+ *     and the set comes back looking like one session rather than twenty-seven;
  *   • a temporary stock photograph can be swapped for the restaurant's own
  *     without anyone having to work out which file was which;
  *   • licence and attribution are recorded next to the image rather than in
  *     somebody's inbox.
  *
- * `credit: null` means the photograph has not been sourced yet. Filling it in is
- * the only bookkeeping a swap requires — the file itself just goes into
- * `public/menu/` under the name in `file`, and the site picks it up.
+ * Every dish currently carries a licensed stock photograph, recorded in
+ * `SOURCED` below. Swapping one for the restaurant's own is two steps: drop the
+ * new file into `public/menu/` under the name in `file`, and change that dish's
+ * entry in `SOURCED`. `credit: null` means a photograph has not been sourced.
  *
  * Nothing here is rendered as decoration: `photoCredit()` supplies attribution
  * where a licence requires it.
@@ -23,7 +24,7 @@
 /* ── House style ──────────────────────────────────────────────────────────── */
 
 /**
- * The rules that make twenty-six separate photographs look like one shoot.
+ * The rules that make twenty-seven separate photographs look like one shoot.
  * Quoted verbatim to a photographer or applied as a retouching brief.
  */
 export const HOUSE_STYLE = {
@@ -83,6 +84,240 @@ export interface PhotoBrief {
   credit: PhotoCredit | null;
 }
 
+/* ── Where the current photographs came from ──────────────────────────────── */
+
+/**
+ * The sourcing record, keyed by dish slug.
+ *
+ * These are licensed stock photographs standing in until Urban Table's own
+ * shoot happens — each one retouched to HOUSE_STYLE, none of them altered in
+ * what they show. Every licence here permits commercial use *and* modification;
+ * a no-derivatives licence would not survive the retouch.
+ *
+ * Replacing one with the restaurant's own photograph is two steps: overwrite
+ * the file in `public/menu/`, and change its entry here to
+ * `source: "Urban Table"` with `attributionRequired: false`. Deleting an entry
+ * is also valid — the dish simply reads as unsourced again.
+ */
+const SOURCED: Record<string, PhotoCredit> = {
+  "urban-classic": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/38142119@N00/14263630896",
+    photographer: "The Marmot",
+    licence: "CC BY 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "smoky-bbq-bacon": {
+    source: "StockSnap.io",
+    url: "https://stocksnap.io/photo/food-burger-2IKZQHEWZ2",
+    photographer: "Mali Maeder",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "double-smash-deluxe": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=175219009",
+    photographer: "Kjoonlee",
+    licence: "CC BY-SA 4.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "crispy-chicken-burger": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/3304030/free-photo-image-sandwiches-olive-fried-fries",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "truffle-mushroom-swiss": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/447885/american-burger-and-french-fries",
+    photographer: "Jakub Kapusnak",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "garden-burger": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5970434/vegetarian-diet-burger",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "slow-braised-beef-dip": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=114418256",
+    photographer: "zenmasterdod",
+    licence: "CC BY-SA 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "grilled-chicken-club": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5923360/photo-image-public-domain-food-free",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "halloumi-roasted-pepper": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5970471/vegetarian-burger",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "buttermilk-chicken-wrap": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/448073/free-photo-image-wrap-burrito-food",
+    photographer: "Jakub Kapusnak",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "chicken-caesar": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5940088/free-public-domain-cc0-photo",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "superfood-quinoa-bowl": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5921341/photo-image-flower-public-domain-plant",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "burrata-heirloom-tomato": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/74105777@N00/8624628631",
+    photographer: "adactio",
+    licence: "CC BY 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "hot-smoked-salmon-bowl": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5921831/photo-image-public-domain-plant-green",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "skin-on-fries": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5906413/photo-image-public-domain-wood-food",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "truffle-parmesan-fries": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/27119975@N00/5351056010",
+    photographer: "Edsel L",
+    licence: "CC BY-SA 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "sweet-potato-fries": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/3285038/free-photo-image-french-fries-sweet-potato-food",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "buttermilk-slaw": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/58246614@N00/3173259085",
+    photographer: "mdid",
+    licence: "CC BY 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "crispy-onion-rings": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/48600087038@N01/2728772353",
+    photographer: "Aine D",
+    licence: "CC BY-SA 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "salted-caramel-brownie": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/3283146/free-photo-image-dessert-biscuit-brownie",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "new-york-cheesecake": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5928083/photo-image-public-domain-happy-birthday-fruit",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "vanilla-soft-serve": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=88207817",
+    photographer: "Famartin",
+    licence: "CC BY-SA 4.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "craft-lemonade": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5948574/free-public-domain-cc0-photo",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "cold-brew-coffee": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5927781/photo-image-public-domain-gold-wooden",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "local-craft-beer": {
+    source: "StockSnap.io",
+    url: "https://stocksnap.io/photo/beer-brew-F15A241D0A",
+    photographer: "Little Visuals",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "spring-water": {
+    source: "Flickr",
+    url: "https://www.flickr.com/photos/53133240@N00/7985698964",
+    photographer: "Muffet",
+    licence: "CC BY 2.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "__hero": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5970025/cheeseburger-fries-ketchup",
+    photographer: "Unknown",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+};
+
 /* ── Briefs ───────────────────────────────────────────────────────────────── */
 
 const brief = (
@@ -92,7 +327,10 @@ const brief = (
   composition: Composition,
   mustShow: string[],
   mustNotShow: string[] = [],
-): PhotoBrief => ({ slug, file, subject, composition, mustShow, mustNotShow, credit: null });
+): PhotoBrief => ({
+  slug, file, subject, composition, mustShow, mustNotShow,
+  credit: SOURCED[slug] ?? null,
+});
 
 /**
  * Burgers and sandwiches are shot at three-quarter so the build reads as layers.
@@ -215,7 +453,7 @@ export const HERO_BRIEF: PhotoBrief = {
   composition: "three-quarter",
   mustShow: ["a burger from the menu", "skin-on fries"],
   mustNotShow: ["dishes not on the menu", "branded packaging"],
-  credit: null,
+  credit: SOURCED["__hero"] ?? null,
 };
 
 /* ── Lookups ──────────────────────────────────────────────────────────────── */

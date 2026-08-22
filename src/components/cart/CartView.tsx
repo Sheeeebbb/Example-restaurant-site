@@ -32,10 +32,8 @@ import { formatMoney } from "@/lib/money";
  */
 export function CartView({
   photoMap,
-  categoryByItemId,
 }: {
   photoMap: Record<string, string | null>;
-  categoryByItemId: Record<string, string>;
 }) {
   const router = useRouter();
 
@@ -161,7 +159,6 @@ export function CartView({
                     key={line.lineId}
                     line={line}
                     photoSrc={photoMap[line.imageSrc] ?? null}
-                    categoryId={categoryByItemId[line.menuItemId] ?? "cat-burgers"}
                   />
                 ))}
               </ul>

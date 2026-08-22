@@ -90,10 +90,8 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
             <FoodImage
               src={photoSrc}
               alt={item.image.alt}
-              categoryId={item.categoryId}
               priority
               sizes="(max-width: 1024px) 100vw, 45vw"
-              glyphClassName="h-24 w-24"
             />
             {!item.available && (
               <div className="absolute inset-0 flex items-center justify-center bg-surface/70">
