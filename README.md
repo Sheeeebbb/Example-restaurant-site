@@ -3,15 +3,15 @@
 A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
 salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 4 of 8 — cart and order configuration.** The architecture,
-design system, domain model, pricing engine, homepage, menu, product
-customiser, cart and order configuration are in place. Payment is the next
-stage; see [Roadmap](#roadmap).
+**Status: Stage 5 of 8 — checkout, confirmation and tracking.** The full
+customer journey works end to end: browse, customise, cart, checkout, mock
+payment, confirmation and a simulated status timeline. The staff-facing admin
+area is next; see [Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 125 unit tests over pricing, scheduling, cart, customisation and validation
+npm test         # 178 unit tests over pricing, scheduling, cart, customisation, validation and orders
 npm run build
 ```
 
@@ -102,10 +102,35 @@ Checkout depends on the `PaymentProvider` interface, never on a processor.
 `MockPaymentProvider` is the only implementation today; Stripe becomes a second
 one and a one-line change in `getPaymentProvider()`.
 
-There is deliberately **no field for a card number, CVC, or expiry** anywhere in
-these types. Real card entry belongs in a Stripe Elements iframe or hosted
-checkout, which keeps card data out of our DOM and our servers — and keeps this
-project out of PCI scope entirely.
+There is deliberately **no field for a card number, CVC, or expiry** in
+`PaymentRequest`, in `Order`, or in any persisted store. The demonstration card
+form (`MockPaymentForm`) is the one place card values exist at all: they live in
+that component's React state, gate the submit button, and are wiped when the
+order is placed. They are never persisted and never included in the request to
+`/api/checkout`.
+
+With Stripe, that component is **deleted rather than adapted** — Elements
+renders the inputs inside an iframe on Stripe's origin, so the number never
+enters our DOM or our server, and the project stays out of PCI scope. Nothing
+downstream changes, because nothing downstream ever knew about a card.
+
+### 5a. The server decides what to charge
+
+`/api/checkout` treats its request as hostile. The client sends item ids, option
+ids, quantities and notes — **no prices**. The server looks each item up in the
+menu, rebuilds the selections from live option data, recomputes every unit
+price, revalidates the promo code, and charges the figure *it* calculated.
+
+A client that posts `total: 1` is charged the real amount, because the number it
+sent is never read. There is a test for exactly that.
+
+### 5b. Order status is derived, not stored
+
+The tracking timeline computes its stage from `createdAt` and
+`estimatedReadyAt` rather than counting up from page load. A timer would reset
+on every refresh — customers would watch their order slide back to "received"
+each time they reloaded. Deriving it means the same moment always yields the
+same stage.
 
 ### 6. Cart lines are content-addressed
 
@@ -140,7 +165,10 @@ src/
 │   ├── menu/                   Menu listing + filtering
 │   │   └── [slug]/             Product detail + customiser
 │   ├── cart/                   Cart + order configuration
-│   ├── checkout/               Order review (payment in stage 5)
+│   ├── checkout/               Checkout + mock payment
+│   ├── order/[reference]/      Confirmation + status timeline
+│   ├── order/track/            Order lookup
+│   └── api/checkout/           ← recomputes prices, takes payment
 │   ├── order/track/            Order status                     (stage 6)
 │   ├── admin/                  Staff area                       (stage 7)
 │   └── api/                    Route handlers                   (stage 5+)
@@ -157,7 +185,8 @@ src/
 │   ├── cart/                   CartView, CartLineRow, OrderSummary,
 │   │                           PromoCodeForm, FulfillmentToggle,
 │   │                           TimingPicker, CustomerForm, EmptyCart
-│   └── checkout/               CheckoutReview
+│   ├── checkout/               CheckoutView, MockPaymentForm, EditableSection
+│   └── order/                  OrderConfirmation, OrderTimeline, TrackOrderView
 │
 └── lib/
     ├── types.ts                The domain model. Start here.
@@ -177,7 +206,11 @@ src/
     │   └── selectors.ts        Derived cart values
     ├── order/
     │   ├── validation.ts       ← order-config rules (pure, UI-free)
-    │   └── draft-store.ts      Customer details (sessionStorage)
+    │   ├── place-order.ts      ← authoritative order creation (server)
+    │   ├── status.ts           Simulated progress, derived from the clock
+    │   ├── reference.ts        Human-readable order numbers
+    │   ├── draft-store.ts      Customer details (sessionStorage)
+    │   └── order-store.ts      Placed orders (sessionStorage)
     ├── fulfillment/
     │   ├── delivery.ts         Postal code → zone, fee, minimum
     │   └── scheduling.ts       Opening hours, lead times, ASAP vs scheduled slots
@@ -209,6 +242,9 @@ functional. So, on the homepage today:
 | **Cart** | Line quantities, removal, and live totals. Every figure is derived from the lines on each render — nothing is stored. |
 | **Promo codes** | `WELCOME20` takes 20% off. Applying a second code replaces the first; the cart holds one code, so discounts cannot stack. |
 | **Order configuration** | Delivery or pickup, ASAP or a real slot from opening hours, and contact details — all validated before you can continue. |
+| **Checkout** | Posts to `/api/checkout`, which revalidates everything and recomputes every price from the menu. A tampered total is ignored. |
+| **Confirmation** | A real order with a reference, at its own URL. Refreshing re-reads it rather than losing it. |
+| **Tracking** | A status timeline derived from the clock, so a refresh lands on the same stage rather than resetting. |
 
 Two guards keep this honest. A unit test asserts every featured item is
 genuinely quick-addable, so no card can ship an "Add to cart" button that
@@ -238,9 +274,9 @@ type.
 | Cart | Zustand + localStorage | Unchanged — carts belong on the client |
 | Pricing | Pure functions, client-side | Same functions, re-run server-side at checkout |
 | Promo codes | Client validation | Server-authoritative, usage limits per customer |
-| Orders | localStorage | Persisted, queryable by staff |
+| Orders | sessionStorage (this tab only) | Persisted, queryable by staff and across devices |
 | Payments | `MockPaymentProvider` | Stripe PaymentIntents + webhooks |
-| Order status | Local, polled | DB-backed, pushed over SSE |
+| Order status | Derived from the clock | Set by kitchen staff, pushed over SSE |
 | Admin auth | **Not built** | Real auth in Next.js Proxy (*Middleware, renamed in v16*) |
 
 Admin auth is deliberately absent rather than faked. A pretend login invites
@@ -294,9 +330,8 @@ Targeting WCAG 2.2 AA:
 | **2. Visual foundation & homepage** | Brand, navigation, hero, featured menu with working add-to-cart, promo banner, why-us, testimonials, footer, legal pages | ✅ **Done** |
 | **3. Menu & customisation** | Menu page, URL-driven category filtering, product detail pages, generic option customiser, quantity, special instructions | ✅ **Done** |
 | **4. Cart & order configuration** | Cart with line editing, promo codes, delivery/pickup, ASAP or scheduled timing, customer details, validation | ✅ **Done** |
-| **5. Checkout & payment** | Mock payment through the existing provider adapter, `/api/checkout` recomputing totals server-side, order creation | Next |
-| **6. Confirmation & tracking** | Order confirmation, reference lookup, status timeline | |
-| **7. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | |
+| **5. Checkout & confirmation** | Checkout, mock payment, `/api/checkout` recomputing totals server-side, order creation, confirmation and simulated tracking | ✅ **Done** |
+| **6. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | Next |
 | **8. Integration** | Stripe behind the existing adapter, database behind the existing repository, admin auth in Proxy | |
 
 Each stage is shippable: nothing depends on a stage after it.

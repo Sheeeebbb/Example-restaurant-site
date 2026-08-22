@@ -36,6 +36,7 @@
   /* --- Herb: secondary accent, used sparingly for "available/open" states --- */
   --herb: #3f6212;
   --herb-soft: #eef4e2;
+  --on-herb: #ffffff;
 
   /* --- Feedback --- */
   --danger: #b91c1c;
@@ -107,6 +108,8 @@
 
     --herb: #a3d06a;
     --herb-soft: #1e2814;
+    /* Herb lightens for dark ground, so a fill made from it needs dark ink. */
+    --on-herb: #1a1614;
 
     --danger: #f87171;
     --danger-soft: #2a1414;
@@ -144,6 +147,7 @@
 
   --color-herb: var(--herb);
   --color-herb-soft: var(--herb-soft);
+  --color-on-herb: var(--on-herb);
 
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);

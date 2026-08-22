@@ -17,7 +17,11 @@ export class MockPaymentProvider implements PaymentProvider {
   readonly isMock = true;
 
   /** Deterministic in tests, realistic in the browser. */
-  constructor(private readonly latencyMs = 900) {}
+  constructor(latencyMs?: number) {
+    this.latencyMs = latencyMs ?? 900;
+  }
+
+  private readonly latencyMs: number;
 
   async createPayment(request: PaymentRequest): Promise<PaymentResult> {
     await new Promise((resolve) => setTimeout(resolve, this.latencyMs));

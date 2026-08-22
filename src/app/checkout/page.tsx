@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { CheckoutReview } from "@/components/checkout/CheckoutReview";
+import { CheckoutView } from "@/components/checkout/CheckoutView";
 
-export const metadata: Metadata = { title: "Review your order" };
+export const metadata: Metadata = { title: "Checkout" };
 
 export default function CheckoutPage() {
-  return <CheckoutReview />;
+  return <CheckoutView />;
 }

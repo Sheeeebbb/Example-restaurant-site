@@ -16,5 +16,9 @@ export { MockPaymentProvider } from "./mock";
  * module must never be imported into a client component.
  */
 export function getPaymentProvider(): PaymentProvider {
-  return new MockPaymentProvider();
+  // The mock's simulated latency exists to keep the UI honest about pending
+  // states. It has no value in tests, where it only makes the suite slow, so
+  // it is dropped there.
+  const latency = process.env.NODE_ENV === "test" ? 0 : undefined;
+  return new MockPaymentProvider(latency);
 }
