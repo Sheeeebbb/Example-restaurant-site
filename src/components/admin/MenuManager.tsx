@@ -126,7 +126,7 @@ export function MenuManager({
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="inline-flex min-h-10 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
+          className="inline-flex min-h-11 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
         >
           Add a dish
         </button>
@@ -191,14 +191,14 @@ export function MenuManager({
                         type="button"
                         onClick={() => remove(item)}
                         disabled={busy === item.id}
-                        className="min-h-9 rounded-control bg-danger px-3 text-sm font-semibold text-on-danger disabled:opacity-50"
+                        className="min-h-11 rounded-control bg-danger px-3 text-sm font-semibold text-on-danger disabled:opacity-50"
                       >
                         Remove
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmingDelete(null)}
-                        className="min-h-9 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink"
+                        className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink"
                       >
                         Keep
                       </button>
@@ -210,7 +210,7 @@ export function MenuManager({
                         onClick={() => toggleAvailability(item)}
                         disabled={busy === item.id}
                         aria-pressed={!item.available}
-                        className="min-h-9 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                        className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
                       >
                         {item.available ? "Mark unavailable" : "Mark available"}
                         <span className="sr-only"> — {item.name}</span>
@@ -218,7 +218,7 @@ export function MenuManager({
                       <button
                         type="button"
                         onClick={() => setEditing(item)}
-                        className="min-h-9 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+                        className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
                       >
                         Edit
                         <span className="sr-only"> {item.name}</span>
@@ -226,7 +226,7 @@ export function MenuManager({
                       <button
                         type="button"
                         onClick={() => setConfirmingDelete(item.id)}
-                        className="min-h-9 rounded-control px-2 text-sm font-medium text-ink-muted transition-colors hover:text-danger"
+                        className="min-h-11 rounded-control px-2 text-sm font-medium text-ink-muted transition-colors hover:text-danger"
                       >
                         Remove
                         <span className="sr-only"> {item.name}</span>

@@ -19,7 +19,8 @@ import {
 } from "@/lib/cart/customization";
 import type { MenuItem } from "@/lib/types";
 
-const NOTES_MAX = 200;
+/** The same cap the server enforces — one number, not two that can drift. */
+const NOTES_MAX = RESTAURANT.ordering.maxNoteLength;
 
 /**
  * The customisation form for any product.

@@ -2,7 +2,8 @@
 
 import { useCartStore } from "@/lib/cart/store";
 import { formatMoney } from "@/lib/money";
-import { RESTAURANT } from "@/lib/config/restaurant";
+import { findZone } from "@/lib/fulfillment/delivery";
+import { DELIVERY_ZONES, RESTAURANT } from "@/lib/config/restaurant";
 import type { FulfillmentType } from "@/lib/types";
 
 /**
@@ -15,15 +16,30 @@ import type { FulfillmentType } from "@/lib/types";
  * differ between the two — a pickup slot 25 minutes out may be unreachable
  * once travel time is added.
  */
+/**
+ * The cheapest delivery a customer could pay, across every zone and the flat
+ * fallback. Quoted as a "from" price because the fee depends on the postal
+ * code, which is not known yet at this point in the form — the toggle used to
+ * state the flat fee as fact, which under-quoted an outer-zone address by
+ * 1,50 € right up until checkout.
+ */
+const CHEAPEST_DELIVERY = Math.min(
+  RESTAURANT.fees.deliveryFee,
+  ...DELIVERY_ZONES.map((zone) => zone.deliveryFee),
+);
+
 const CHOICES: {
   value: FulfillmentType;
   label: string;
-  detail: (fee: number) => string;
+  detail: (fee: number | null) => string;
 }[] = [
   {
     value: "delivery",
     label: "Delivery",
-    detail: (fee) => `${formatMoney(fee)} · to your door`,
+    detail: (fee) =>
+      fee === null
+        ? `From ${formatMoney(CHEAPEST_DELIVERY)} · to your door`
+        : `${formatMoney(fee)} · to your door`,
   },
   {
     value: "pickup",
@@ -35,6 +51,12 @@ const CHOICES: {
 export function FulfillmentToggle() {
   const fulfillmentType = useCartStore((state) => state.fulfillmentType);
   const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
+  const postalCode = useCartStore((state) => state.postalCode);
+
+  // Once the postal code is known the exact fee is known, so show that instead
+  // of the "from" price.
+  const zone = findZone(postalCode);
+  const knownFee = zone ? zone.deliveryFee : null;
 
   return (
     <fieldset className="border-0 p-0">
@@ -73,7 +95,7 @@ export function FulfillmentToggle() {
               <span>
                 <span className="block font-semibold text-ink">{choice.label}</span>
                 <span className="block text-sm text-ink-muted">
-                  {choice.detail(RESTAURANT.fees.deliveryFee)}
+                  {choice.detail(knownFee)}
                 </span>
               </span>
             </label>

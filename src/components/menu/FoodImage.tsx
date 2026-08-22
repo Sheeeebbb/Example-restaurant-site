@@ -20,7 +20,7 @@ export function FoodImage({
   sizes,
   priority = false,
   className = "",
-  glyphClassName = "h-14 w-14",
+  glyphClassName = "h-20 w-20",
 }: {
   src: string | null;
   alt: string;
@@ -51,10 +51,20 @@ export function FoodImage({
       {/* A single soft warm wash. Enough to make the frame feel composed rather
           than empty, without becoming a gradient in its own right. */}
       <span className="absolute inset-0 bg-[radial-gradient(115%_85%_at_50%_0%,var(--ember-soft),transparent_72%)]" />
-      <FoodGlyph
-        name={glyphForCategory(categoryId)}
-        className={`relative ${glyphClassName} text-ink-subtle/40`}
-      />
+
+      {/*
+        The glyph sits on a ringed disc rather than floating loose in the frame.
+        At the old size it read as a large empty box with a small mark in it —
+        twenty-six of those in a grid look unfinished. Given a shape to occupy,
+        the same tile reads as a deliberate category illustration until real
+        photography replaces it.
+      */}
+      <span className="relative flex aspect-square w-[38%] max-w-32 items-center justify-center rounded-full border border-ember-border/60 bg-surface/45">
+        <FoodGlyph
+          name={glyphForCategory(categoryId)}
+          className={`${glyphClassName} max-h-[58%] max-w-[58%] text-ember/45`}
+        />
+      </span>
     </div>
   );
 }

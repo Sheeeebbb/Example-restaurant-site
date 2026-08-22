@@ -31,13 +31,18 @@ export default async function AdminDashboardPage() {
         </div>
         <Link
           href="/admin/orders"
-          className="inline-flex min-h-10 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
+          className="inline-flex min-h-11 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
         >
           Manage orders
         </Link>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/*
+        Two-up from the smallest screen. Five full-width cards stacked meant a
+        kitchen phone had to scroll past the whole board to see the last figure,
+        which defeats the point of a glanceable dashboard.
+      */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatCard
           label="Orders today"
           value={String(stats.ordersToday)}
@@ -87,7 +92,7 @@ export default async function AdminDashboardPage() {
             </p>
             <Link
               href="/menu"
-              className="mt-5 inline-flex min-h-10 items-center rounded-control border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-sunken"
+              className="mt-5 inline-flex min-h-11 items-center rounded-control border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-sunken"
             >
               Open the customer menu
             </Link>

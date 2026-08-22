@@ -29,15 +29,15 @@ export function StatCard({
   } as const;
 
   return (
-    <div className="rounded-card border border-line bg-surface p-5">
+    <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-ink-muted">{label}</p>
         {icon && <span aria-hidden="true" className="text-ink-subtle">{icon}</span>}
       </div>
-      <p className={`mt-3 font-display text-3xl font-semibold tabular-nums ${tones[tone]}`}>
+      <p className={`mt-2 font-display text-2xl font-semibold tabular-nums sm:mt-3 sm:text-3xl ${tones[tone]}`}>
         {value}
       </p>
-      {hint && <p className="mt-1 text-sm text-ink-subtle">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-ink-subtle sm:text-sm">{hint}</p>}
     </div>
   );
 }

@@ -20,7 +20,13 @@
   /* --- Ink --- */
   --ink: #1a1614;
   --ink-muted: #6a5d55;
-  --ink-subtle: #93857c;
+  /*
+    The quietest text on the page — VAT notes, per-unit prices, "Required"
+    hints, the footer. It was #93857c, which measured 3.13:1 against paper and
+    failed WCAG AA on every page in both themes. Small print is exactly the text
+    that must not be hard to read.
+  */
+  --ink-subtle: #74675e;
   --ink-inverse: #fdf8f2;
 
   /* --- Ember: the single accent. Terracotta, warm, appetite-forward. --- */
@@ -96,7 +102,8 @@
 
     --ink: #f5ece2;
     --ink-muted: #b3a396;
-    --ink-subtle: #8a7b6f;
+    /* Lightened for the same reason: 4.23:1 against the dark surface failed AA. */
+    --ink-subtle: #9d8d80;
     --ink-inverse: #1a1614;
 
     /* Lightened so it clears 4.5:1 against the dark surface */

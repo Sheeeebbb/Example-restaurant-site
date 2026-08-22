@@ -56,7 +56,7 @@ export function OrderDetail({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-9 rounded-control px-2 text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-ink lg:hidden"
+          className="min-h-11 rounded-control px-2 text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-ink lg:hidden"
         >
           Back to queue
         </button>
@@ -75,7 +75,7 @@ export function OrderDetail({
                   type="button"
                   onClick={() => onStatusChange(choice)}
                   aria-pressed={isCurrent}
-                  className={`min-h-10 rounded-control border px-3 text-sm font-medium transition-colors ${
+                  className={`min-h-11 rounded-control border px-3 text-sm font-medium transition-colors ${
                     isCurrent
                       ? "border-ember bg-ember text-on-ember"
                       : choice === "cancelled"

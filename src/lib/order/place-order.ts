@@ -57,7 +57,7 @@ export type PlaceOrderResult =
   | { ok: true; order: Order }
   | { ok: false; error: string; field?: string };
 
-const MAX_LINES = 40;
+
 
 export async function placeOrder(
   request: PlaceOrderRequest,
@@ -67,7 +67,7 @@ export async function placeOrder(
   if (!Array.isArray(request.lines) || request.lines.length === 0) {
     return { ok: false, error: "Your cart is empty." };
   }
-  if (request.lines.length > MAX_LINES) {
+  if (request.lines.length > RESTAURANT.ordering.maxLinesPerOrder) {
     return { ok: false, error: "That's too many separate items for one order." };
   }
 
@@ -126,7 +126,12 @@ export async function placeOrder(
       };
     }
 
-    lines.push(createCartLine(item, selections, quantity, requested.notes));
+    // Truncate rather than reject: a note that runs long is a customer being
+    // thorough, not an attack, and losing their whole order over it would be
+    // worse than trimming it. The bound itself is not optional — see
+    // FIELD_LIMITS for the same reasoning on the address fields.
+    const notes = requested.notes?.slice(0, RESTAURANT.ordering.maxNoteLength);
+    lines.push(createCartLine(item, selections, quantity, notes));
   }
 
   /* ── 2. Validate the customer's details ─────────────────────────────────── */

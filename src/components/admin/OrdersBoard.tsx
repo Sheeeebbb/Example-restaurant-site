@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { OrderDetail } from "./OrderDetail";
 import { StatusBadge } from "./StatusBadge";
@@ -44,11 +44,25 @@ export function OrdersBoard() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
 
+  /**
+   * Counts status changes made from this screen.
+   *
+   * A poll started before a status change can resolve after it, carrying the
+   * pre-change data and silently reverting what staff just did on screen. The
+   * counter lets a response check whether it is still current: if a change
+   * landed while it was in flight, its payload is stale and gets dropped.
+   * Fifteen seconds makes this rare, not impossible — and "rare" is how a
+   * kitchen ends up not trusting the board.
+   */
+  const mutations = useRef(0);
+
   const load = useCallback(async () => {
+    const startedAt = mutations.current;
     try {
       const response = await fetch("/api/admin/orders", { cache: "no-store" });
       if (!response.ok) throw new Error("failed");
       const body = (await response.json()) as { orders: Order[] };
+      if (mutations.current !== startedAt) return; // superseded
       setOrders(body.orders);
       setError(null);
     } catch {
@@ -83,6 +97,7 @@ export function OrdersBoard() {
       return;
     }
 
+    mutations.current += 1;
     const body = (await response.json()) as { order: Order };
     setOrders((current) =>
       current.map((order) =>
@@ -142,7 +157,7 @@ export function OrdersBoard() {
               type="button"
               onClick={() => setFilter(option.value)}
               aria-pressed={filter === option.value}
-              className={`min-h-9 rounded-full px-3 text-sm font-medium transition-colors ${
+              className={`min-h-11 rounded-full px-3 text-sm font-medium transition-colors ${
                 filter === option.value
                   ? "bg-ember text-on-ember"
                   : "border border-line-strong bg-surface text-ink-muted hover:text-ink"

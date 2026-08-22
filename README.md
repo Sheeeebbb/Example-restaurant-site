@@ -3,15 +3,14 @@
 A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
 salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 6 of 8 — staff administration.** The customer journey works end
-to end, and staff can now see incoming orders, move them through the kitchen,
-and manage the menu. Polish and real backend integration remain; see
-[Roadmap](#roadmap).
+**Status: Stage 7 of 8 — QA, accessibility and polish.** Both journeys have been
+audited end to end and the defects found are fixed and covered by regression
+tests. Real backend integration remains; see [Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 205 unit tests over pricing, scheduling, cart, customisation, validation, orders and admin
+npm test         # 217 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -158,6 +157,23 @@ it has been since they placed it.
 
 Full customer details live behind the staff gate, where the kitchen genuinely
 needs them to cook and deliver.
+
+### 5e. The kitchen has to be open
+
+`validateTiming` refuses an ASAP order when the restaurant is shut, and the same
+function runs in the cart, at checkout, and inside `placeOrder`. Scheduling
+ahead while closed is still allowed — ordering tomorrow's lunch at midnight is
+normal — and is checked against the chosen slot's own opening hours.
+
+This was found in QA: orders placed at 4am, or on a Monday when the restaurant
+never opens, were accepted and paid for with nobody there to cook them.
+
+### 5f. Free text is bounded on the server
+
+`FIELD_LIMITS` caps every free-text field, and `placeOrder` truncates kitchen
+notes to `RESTAURANT.ordering.maxNoteLength`. A `maxLength` on an input is a
+courtesy to the customer; these are the actual limits. The API previously
+accepted and stored a 5,000-character name.
 
 ### 6. Cart lines are content-addressed
 

@@ -5,6 +5,7 @@ import { MenuItemCard } from "@/components/menu/MenuItemCard";
 import { CategoryFilter } from "@/components/menu/CategoryFilter";
 import { getCategories, getMenuItems } from "@/lib/data/repository";
 import { resolvePhoto } from "@/lib/data/photos";
+import { ServiceStatus } from "@/components/layout/ServiceStatus";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Category } from "@/lib/types";
 
@@ -55,6 +56,7 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
           Everything is cooked to order. Tap any dish to choose sizes, extras and
           sauces before adding it.
         </p>
+        <ServiceStatus className="mt-5" />
       </Container>
 
       <CategoryFilter categories={categories} active={active} />

@@ -19,10 +19,16 @@ export function AdminNav() {
     router.refresh();
   };
 
+  /*
+   * The nav wraps instead of scrolling. It used to be `flex-1 overflow-x-auto`
+   * next to a shrink-0 action group, which squeezed it below its content width
+   * and clipped "Menu" mid-word at 768px and under — a navigation item you
+   * cannot see is a navigation item you do not have.
+   */
   return (
-    <div className="order-3 flex w-full items-center gap-1 sm:order-2 sm:ml-auto sm:w-auto">
-      <nav aria-label="Staff" className="min-w-0 flex-1">
-        <ul className="flex items-center gap-1 overflow-x-auto">
+    <div className="order-3 flex w-full flex-wrap items-center gap-x-2 gap-y-1 sm:order-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
+      <nav aria-label="Staff">
+        <ul className="flex flex-wrap items-center gap-1">
           {LINKS.map((link) => {
             // `/admin` would otherwise light up on every child route.
             const active =
@@ -34,7 +40,7 @@ export function AdminNav() {
                 <Link
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`inline-flex min-h-10 items-center whitespace-nowrap rounded-control px-3 text-sm font-medium transition-colors ${
+                  className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-control px-3 text-sm font-medium transition-colors ${
                     active
                       ? "bg-poster-fg/12 text-poster-fg"
                       : "text-poster-muted hover:bg-poster-fg/8 hover:text-poster-fg"
@@ -48,17 +54,17 @@ export function AdminNav() {
         </ul>
       </nav>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
         <Link
           href="/"
-          className="inline-flex min-h-10 items-center rounded-control px-3 text-sm font-medium text-poster-muted transition-colors hover:text-poster-fg"
+          className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-medium text-poster-muted transition-colors hover:text-poster-fg"
         >
           View site
         </Link>
         <button
           type="button"
           onClick={signOut}
-          className="inline-flex min-h-10 items-center rounded-control border border-poster-fg/25 px-3 text-sm font-medium text-poster-fg transition-colors hover:bg-poster-fg/10"
+          className="inline-flex min-h-11 items-center rounded-control border border-poster-fg/25 px-3 text-sm font-medium text-poster-fg transition-colors hover:bg-poster-fg/10"
         >
           Sign out
         </button>

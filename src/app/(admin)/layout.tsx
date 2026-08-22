@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: LayoutProps<"/"> ) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
             <Link
               href="/admin"
-              className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight"
+              className="flex min-h-11 items-center gap-2 font-display text-lg font-semibold tracking-tight"
             >
               <span
                 aria-hidden="true"

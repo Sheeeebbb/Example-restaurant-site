@@ -28,10 +28,6 @@ export async function getCategories(): Promise<Category[]> {
   return clone(CATEGORIES).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-export async function getCategoryBySlug(slug: string): Promise<Category | null> {
-  return clone(CATEGORIES.find((category) => category.slug === slug) ?? null);
-}
-
 export async function getCategoryById(id: string): Promise<Category | null> {
   return clone(CATEGORIES.find((category) => category.id === id) ?? null);
 }
@@ -68,26 +64,6 @@ export async function getMenuItemsByIds(ids: string[]): Promise<MenuItem[]> {
   return clone(getStore().menu.filter((item) => wanted.has(item.id)));
 }
 
-/** Categories paired with their items — one call for the whole menu page. */
-export async function getMenuByCategory(): Promise<
-  { category: Category; items: MenuItem[] }[]
-> {
-  const categories = await getCategories();
-  const items = await getMenuItems();
-
-  return categories
-    .map((category) => ({
-      category,
-      items: items.filter((item) => item.categoryId === category.id),
-    }))
-    .filter((group) => group.items.length > 0);
-}
-
 export async function getPromotion(code: string): Promise<Promotion | null> {
   return clone(findPromotion(code));
-}
-
-/** All slugs, for `generateStaticParams` on the product routes in stage 2. */
-export async function getAllMenuSlugs(): Promise<string[]> {
-  return getStore().menu.map((item) => item.slug);
 }

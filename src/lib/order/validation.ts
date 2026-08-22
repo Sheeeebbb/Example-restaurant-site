@@ -1,7 +1,8 @@
 import type { Address, CustomerDetails, FulfillmentType, TimingMode } from "../types";
 import { findZone, normalizePostalCode } from "../fulfillment/delivery";
-import { isSlotStillValid } from "../fulfillment/scheduling";
+import { isAcceptingOrdersAt, isSlotStillValid } from "../fulfillment/scheduling";
 import type { DeliveryZone } from "../types";
+import { RESTAURANT } from "../config/restaurant";
 
 /**
  * Validation for the order configuration step.
@@ -66,12 +67,39 @@ function digitCount(value: string): number {
   return (value.match(/\d/g) ?? []).length;
 }
 
+/**
+ * Upper bounds on free-text fields.
+ *
+ * These are not cosmetic. Without them the API accepted a 5,000-character name
+ * and stored it on the order — which breaks kitchen tickets, bloats storage,
+ * and is exactly the sort of unbounded input that should never reach a
+ * database. `maxLength` on an input is a courtesy to the customer; this is the
+ * actual limit, and it runs on the server too.
+ */
+export const FIELD_LIMITS = {
+  name: 80,
+  phone: 30,
+  email: 254, // RFC 5321 maximum
+  street: 120,
+  houseNumber: 20,
+  postalCode: 12,
+  city: 80,
+  deliveryInstructions: 300,
+} as const satisfies Record<DraftField, number>;
+
 export function validateOrderDraft(
   draft: OrderDraft,
   fulfillmentType: FulfillmentType,
 ): FieldErrors {
   const errors: FieldErrors = {};
   const trimmed = (field: DraftField) => draft[field].trim();
+
+  // Length first: an over-long value is rejected whatever else it contains.
+  for (const [field, limit] of Object.entries(FIELD_LIMITS) as [DraftField, number][]) {
+    if ((draft[field] ?? "").length > limit) {
+      errors[field] = `Please keep this under ${limit} characters.`;
+    }
+  }
 
   if (trimmed("name").length < 2) {
     errors.name = "Please enter your full name.";
@@ -117,11 +145,19 @@ export function isDraftValid(
 }
 
 /**
- * Checks a chosen collection time is still reachable.
+ * Checks the requested time is one the kitchen can actually meet.
  *
- * A slot picked five minutes ago can fall inside the kitchen's lead time while
- * the customer is still filling in the form, so this is re-checked at the point
- * of continuing rather than only when the slot was selected.
+ * Two distinct cases:
+ *
+ *   • ASAP means "start cooking now", so the kitchen has to be open now. Without
+ *     this check an order placed at 4am, or on a Monday when the restaurant is
+ *     shut all day, was accepted and paid for with nobody there to cook it.
+ *
+ *   • A scheduled slot may legitimately be booked while closed — ordering
+ *     tomorrow's lunch at midnight is normal — so it is checked against the
+ *     slot's own opening hours instead, and re-checked here because a slot
+ *     picked five minutes ago can fall inside the lead time while the customer
+ *     is still filling in the form.
  */
 export function validateTiming(
   timing: TimingMode,
@@ -130,7 +166,11 @@ export function validateTiming(
   zone: DeliveryZone | null,
   now: Date = new Date(),
 ): string | null {
-  if (timing === "asap") return null;
+  if (timing === "asap") {
+    return isAcceptingOrdersAt(now)
+      ? null
+      : `${RESTAURANT.name} isn't taking orders right now. Schedule one for later instead.`;
+  }
   if (!scheduledFor) return "Please choose a time.";
   if (!isSlotStillValid(scheduledFor, now, fulfillmentType, zone)) {
     return "That time has passed. Please pick another.";

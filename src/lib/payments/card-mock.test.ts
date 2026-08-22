@@ -5,7 +5,6 @@ import {
   formatCardNumber,
   formatExpiry,
   isCardValid,
-  lastFour,
   passesLuhn,
   validateCard,
   type CardDraft,
@@ -96,8 +95,3 @@ describe("validateCard", () => {
   });
 });
 
-describe("lastFour", () => {
-  it("returns only the final four digits", () => {
-    expect(lastFour("4242 4242 4242 1881")).toBe("1881");
-  });
-});

@@ -1,6 +1,7 @@
 import { Container } from "@/components/ui/Container";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { OrderModeButtons } from "./OrderModeButtons";
+import { ServiceStatus } from "@/components/layout/ServiceStatus";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { MenuItem } from "@/lib/types";
@@ -27,13 +28,12 @@ export function Hero({
       <Container className="py-14 sm:py-20 lg:py-28">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <div className="motion-safe:animate-[fade-up_0.6s_ease-out_both]">
-            <p className="inline-flex items-center gap-2 rounded-full bg-ember-soft px-3 py-1.5 text-sm font-medium text-ember">
-              <span
-                aria-hidden="true"
-                className="inline-block h-1.5 w-1.5 rounded-full bg-ember"
-              />
-              Free delivery over {formatMoney(RESTAURANT.fees.freeDeliveryThreshold)}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <ServiceStatus />
+              <p className="inline-flex items-center gap-2 rounded-full bg-ember-soft px-3 py-1.5 text-sm font-medium text-ember">
+                Free delivery over {formatMoney(RESTAURANT.fees.freeDeliveryThreshold)}
+              </p>
+            </div>
 
             <h1 className="mt-5 font-display text-[2.6rem] font-semibold leading-[1.05] tracking-tight text-ink sm:text-6xl lg:text-[4.25rem]">
               Good Food.

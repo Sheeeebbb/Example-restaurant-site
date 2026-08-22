@@ -85,6 +85,10 @@ export const RESTAURANT = {
     lastOrderBufferMinutes: 30,
     /** Cap per line, to stop a typo becoming 400 burgers. */
     maxQuantityPerLine: 20,
+    /** Cap on a line's special instructions. Enforced server-side, not just in the textarea. */
+    maxNoteLength: 200,
+    /** Cap on separate lines in one order. */
+    maxLinesPerOrder: 40,
   },
 
   fees: {

@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 /**
  * Staff sign-in.
  *
- * The passcode is shown on screen on purpose: this is a demonstration, and a
- * hidden shared secret would only make the prototype awkward to try without
- * making it any more secure. See the warning in `lib/admin/auth.ts`.
+ * The demo passcode is shown on screen on purpose — a hidden shared secret
+ * would make the prototype awkward to try without making it any more secure.
+ * It is passed in from the server and only when the published default is still
+ * in use, so a deployment that sets its own never prints it. See the warning in
+ * `lib/admin/auth.ts`.
  */
-export function StaffLoginForm() {
+export function StaffLoginForm({ demoPasscode }: { demoPasscode: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/admin";
@@ -77,9 +79,12 @@ export function StaffLoginForm() {
               {error}
             </p>
           ) : (
-            <p id="passcode-hint" className="mt-2 text-sm text-ink-subtle">
-              Demo passcode: <code className="font-medium text-ink">urbantable</code>
-            </p>
+            demoPasscode && (
+              <p id="passcode-hint" className="mt-2 text-sm text-ink-subtle">
+                Demo passcode:{" "}
+                <code className="font-medium text-ink">{demoPasscode}</code>
+              </p>
+            )
           )}
 
           <button

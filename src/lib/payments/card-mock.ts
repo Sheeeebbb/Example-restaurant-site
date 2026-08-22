@@ -119,8 +119,3 @@ export function validateCard(card: CardDraft, now: Date = new Date()): CardError
 export function isCardValid(card: CardDraft, now: Date = new Date()): boolean {
   return Object.keys(validateCard(card, now)).length === 0;
 }
-
-/** Last four digits, for the receipt. Never the full number. */
-export function lastFour(number: string): string {
-  return digitsOnly(number).slice(-4);
-}

@@ -2,7 +2,8 @@
 
 import { useOrderDraftStore } from "@/lib/order/draft-store";
 import { useCartStore } from "@/lib/cart/store";
-import type { DraftField, FieldErrors } from "@/lib/order/validation";
+import { FIELD_LIMITS, type DraftField, type FieldErrors } from "@/lib/order/validation";
+import { RESTAURANT } from "@/lib/config/restaurant";
 import type { FulfillmentType } from "@/lib/types";
 
 /**
@@ -78,6 +79,7 @@ export function CustomerForm({
           inputMode={spec.inputMode}
           autoComplete={spec.autoComplete}
           placeholder={spec.placeholder}
+          maxLength={FIELD_LIMITS[spec.name]}
           value={draft[spec.name]}
           onChange={(event) => handleChange(spec.name, event.target.value)}
           aria-invalid={Boolean(error) || undefined}
@@ -120,6 +122,7 @@ export function CustomerForm({
                 id="deliveryInstructions"
                 name="deliveryInstructions"
                 rows={2}
+                maxLength={FIELD_LIMITS.deliveryInstructions}
                 value={draft.deliveryInstructions}
                 onChange={(event) =>
                   handleChange("deliveryInstructions", event.target.value)
@@ -134,8 +137,8 @@ export function CustomerForm({
 
       {fulfillmentType === "pickup" && (
         <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-          Collect from Oranienstraße 148. We&rsquo;ll text you when it&rsquo;s
-          ready.
+          Collect from {RESTAURANT.address.line1}, {RESTAURANT.address.postalCode}{" "}
+          {RESTAURANT.address.city}. We&rsquo;ll text you when it&rsquo;s ready.
         </p>
       )}
     </div>

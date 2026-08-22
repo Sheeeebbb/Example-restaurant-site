@@ -2,7 +2,11 @@
 
 import { useMemo } from "react";
 import { useCartStore } from "@/lib/cart/store";
-import { generateSlots, earliestReadyTime } from "@/lib/fulfillment/scheduling";
+import {
+  generateSlots,
+  earliestReadyTime,
+  isAcceptingOrdersAt,
+} from "@/lib/fulfillment/scheduling";
 import { findZone } from "@/lib/fulfillment/delivery";
 import { RESTAURANT } from "@/lib/config/restaurant";
 
@@ -23,7 +27,7 @@ export function TimingPicker({ error }: { error: string | null }) {
   const setTiming = useCartStore((state) => state.setTiming);
   const setScheduledFor = useCartStore((state) => state.setScheduledFor);
 
-  const { days, readyLabel } = useMemo(() => {
+  const { days, readyLabel, acceptingNow } = useMemo(() => {
     const now = new Date();
     const zone = fulfillmentType === "delivery" ? findZone(postalCode) : null;
     const ready = earliestReadyTime(now, fulfillmentType, zone);
@@ -31,6 +35,7 @@ export function TimingPicker({ error }: { error: string | null }) {
     return {
       days: generateSlots(now, fulfillmentType, zone),
       readyLabel: `about ${minutes} minutes`,
+      acceptingNow: isAcceptingOrdersAt(now),
     };
   }, [fulfillmentType, postalCode]);
 
@@ -44,7 +49,13 @@ export function TimingPicker({ error }: { error: string | null }) {
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {[
-          { value: "asap" as const, label: "As soon as possible", detail: readyLabel },
+          {
+            value: "asap" as const,
+            label: "As soon as possible",
+            // When the kitchen is shut, ASAP is not an option the customer can
+            // take — saying "about 20 minutes" would be a promise nobody can keep.
+            detail: acceptingNow ? readyLabel : "Kitchen closed right now",
+          },
           {
             value: "scheduled" as const,
             label: "Schedule for later",
@@ -52,7 +63,9 @@ export function TimingPicker({ error }: { error: string | null }) {
           },
         ].map((choice) => {
           const isSelected = timing === choice.value;
-          const disabled = choice.value === "scheduled" && noSlots;
+          const disabled =
+            (choice.value === "scheduled" && noSlots) ||
+            (choice.value === "asap" && !acceptingNow);
           return (
             <label
               key={choice.value}
@@ -116,6 +129,13 @@ export function TimingPicker({ error }: { error: string | null }) {
             Times are shown for {RESTAURANT.address.city}.
           </p>
         </div>
+      )}
+
+      {!acceptingNow && (
+        <p role="status" className="mt-4 rounded-control bg-surface-sunken p-3 text-sm text-ink-muted">
+          The kitchen is closed at the moment, so orders can only be scheduled.
+          Pick a time above and we&rsquo;ll have it ready.
+        </p>
       )}
 
       {error && (
