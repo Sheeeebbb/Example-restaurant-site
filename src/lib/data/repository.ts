@@ -1,5 +1,6 @@
 import type { Category, MenuItem, Promotion } from "../types";
-import { CATEGORIES, MENU_ITEMS } from "./menu";
+import { CATEGORIES } from "./menu";
+import { getStore } from "../server/store";
 import { findPromotion } from "./promotions";
 
 /**
@@ -12,6 +13,10 @@ import { findPromotion } from "./promotions";
  *
  * Nothing outside this folder imports `./menu` directly — components go through
  * these functions, so there is exactly one place to swap.
+ *
+ * Items now come from the mutable server store rather than the seed module, so
+ * a change staff make in the admin area is visible on the customer menu
+ * immediately. `./menu` is the factory default the store is seeded from.
  */
 
 /** Defensive copy, so a caller mutating a result cannot corrupt the seed data. */
@@ -40,7 +45,7 @@ export interface MenuQuery {
 }
 
 export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
-  let items = clone(MENU_ITEMS);
+  let items = clone(getStore().menu);
 
   if (query.category) {
     const category = CATEGORIES.find((entry) => entry.slug === query.category);
@@ -55,12 +60,12 @@ export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
 }
 
 export async function getMenuItemBySlug(slug: string): Promise<MenuItem | null> {
-  return clone(MENU_ITEMS.find((item) => item.slug === slug) ?? null);
+  return clone(getStore().menu.find((item) => item.slug === slug) ?? null);
 }
 
 export async function getMenuItemsByIds(ids: string[]): Promise<MenuItem[]> {
   const wanted = new Set(ids);
-  return clone(MENU_ITEMS.filter((item) => wanted.has(item.id)));
+  return clone(getStore().menu.filter((item) => wanted.has(item.id)));
 }
 
 /** Categories paired with their items — one call for the whole menu page. */
@@ -84,5 +89,5 @@ export async function getPromotion(code: string): Promise<Promotion | null> {
 
 /** All slugs, for `generateStaticParams` on the product routes in stage 2. */
 export async function getAllMenuSlugs(): Promise<string[]> {
-  return MENU_ITEMS.map((item) => item.slug);
+  return getStore().menu.map((item) => item.slug);
 }

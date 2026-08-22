@@ -3,15 +3,15 @@
 A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
 salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 5 of 8 — checkout, confirmation and tracking.** The full
-customer journey works end to end: browse, customise, cart, checkout, mock
-payment, confirmation and a simulated status timeline. The staff-facing admin
-area is next; see [Roadmap](#roadmap).
+**Status: Stage 6 of 8 — staff administration.** The customer journey works end
+to end, and staff can now see incoming orders, move them through the kitchen,
+and manage the menu. Polish and real backend integration remain; see
+[Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 178 unit tests over pricing, scheduling, cart, customisation, validation and orders
+npm test         # 205 unit tests over pricing, scheduling, cart, customisation, validation, orders and admin
 npm run build
 ```
 
@@ -132,6 +132,33 @@ on every refresh — customers would watch their order slide back to "received"
 each time they reloaded. Deriving it means the same moment always yields the
 same stage.
 
+### 5c. The staff gate is mocked, in one place
+
+`/admin/*` and `/api/admin/*` are guarded by `src/proxy.ts` (Next 16 renamed
+Middleware to Proxy). Every check funnels through `hasStaffSession`, so no route
+handler does its own — a handler that forgets is how admin areas leak.
+
+**The check itself is not secure and does not pretend to be.** It compares a
+shared passcode and sets a cookie whose value is a constant, forgeable by anyone
+who reads the source. There is no user identity, no roles, no revocation, no
+rate limiting. What is real is the *shape*: one matcher, one gate, one function
+to replace with a session library and a role check. Until that happens this
+admin area must not be deployed publicly with real customer data behind it.
+
+The banner across every staff page says the same thing, so nobody using it is in
+any doubt.
+
+### 5d. An order reference does not unlock personal data
+
+The public tracking endpoint (`/api/orders/[reference]/status`) returns the
+status and nothing else — no name, phone, address, items or total. An order
+reference is a weak bearer token, so it must not be enough to read someone's
+details. The customer's own copy of their order comes from their browser, where
+it has been since they placed it.
+
+Full customer details live behind the staff gate, where the kitchen genuinely
+needs them to cook and deliver.
+
 ### 6. Cart lines are content-addressed
 
 A line's id is a hash of the item plus its sorted selections and notes. Adding
@@ -168,7 +195,10 @@ src/
 │   ├── checkout/               Checkout + mock payment
 │   ├── order/[reference]/      Confirmation + status timeline
 │   ├── order/track/            Order lookup
-│   └── api/checkout/           ← recomputes prices, takes payment
+│   ├── (admin)/admin/          Staff dashboard, orders, menu, sign-in
+│   ├── api/checkout/           ← recomputes prices, takes payment
+│   ├── api/orders/…/status/    Public: status only, no personal data
+│   └── api/admin/              Behind the staff gate
 │   ├── order/track/            Order status                     (stage 6)
 │   ├── admin/                  Staff area                       (stage 7)
 │   └── api/                    Route handlers                   (stage 5+)
@@ -186,7 +216,9 @@ src/
 │   │                           PromoCodeForm, FulfillmentToggle,
 │   │                           TimingPicker, CustomerForm, EmptyCart
 │   ├── checkout/               CheckoutView, MockPaymentForm, EditableSection
-│   └── order/                  OrderConfirmation, OrderTimeline, TrackOrderView
+│   ├── order/                  OrderConfirmation, OrderTimeline, TrackOrderView
+│   └── admin/                  AdminNav, StatCard, OrdersBoard, OrderDetail,
+│                               MenuManager, MenuItemForm, StaffLoginForm
 │
 └── lib/
     ├── types.ts                The domain model. Start here.
@@ -204,13 +236,20 @@ src/
     │   ├── customization.ts    ← customiser rules (pure, UI-free)
     │   ├── totals.ts           ← the pricing engine (pure, shared client/server)
     │   └── selectors.ts        Derived cart values
+    ├── admin/
+    │   ├── auth.ts             ← MOCK staff gate (read the warning)
+    │   ├── menu-admin.ts       Menu create/edit/delete/availability
+    │   └── stats.ts            Dashboard figures (pure)
+    ├── server/
+    │   └── store.ts            ← in-memory stand-in for the database
     ├── order/
     │   ├── validation.ts       ← order-config rules (pure, UI-free)
     │   ├── place-order.ts      ← authoritative order creation (server)
     │   ├── status.ts           Simulated progress, derived from the clock
     │   ├── reference.ts        Human-readable order numbers
     │   ├── draft-store.ts      Customer details (sessionStorage)
-    │   └── order-store.ts      Placed orders (sessionStorage)
+    │   ├── order-store.ts      The customer's own copy (sessionStorage)
+    │   └── order-repository.ts ← server-side orders, shared with the kitchen
     ├── fulfillment/
     │   ├── delivery.ts         Postal code → zone, fee, minimum
     │   └── scheduling.ts       Opening hours, lead times, ASAP vs scheduled slots
@@ -244,7 +283,10 @@ functional. So, on the homepage today:
 | **Order configuration** | Delivery or pickup, ASAP or a real slot from opening hours, and contact details — all validated before you can continue. |
 | **Checkout** | Posts to `/api/checkout`, which revalidates everything and recomputes every price from the menu. A tampered total is ignored. |
 | **Confirmation** | A real order with a reference, at its own URL. Refreshing re-reads it rather than losing it. |
-| **Tracking** | A status timeline derived from the clock, so a refresh lands on the same stage rather than resetting. |
+| **Tracking** | A status timeline derived from the clock, so a refresh lands on the same stage rather than resetting — until staff set a status, which then wins. |
+| **Staff dashboard** | Live counts and revenue from real orders, behind a demonstration passcode. |
+| **Order management** | Every order the kitchen has, with full customer details, and status changes that reach the customer's tracking page. |
+| **Menu management** | Add, edit, remove and mark dishes unavailable; changes appear on the customer menu immediately. |
 
 Two guards keep this honest. A unit test asserts every featured item is
 genuinely quick-addable, so no card can ship an "Add to cart" button that
@@ -270,17 +312,18 @@ type.
 
 | Concern | Today | Later |
 | --- | --- | --- |
-| Menu & categories | Typed modules behind the repository | Postgres, admin CRUD |
+| Menu & categories | In-memory server store, editable by staff | Postgres, with the same repository interface |
 | Cart | Zustand + localStorage | Unchanged — carts belong on the client |
 | Pricing | Pure functions, client-side | Same functions, re-run server-side at checkout |
 | Promo codes | Client validation | Server-authoritative, usage limits per customer |
-| Orders | sessionStorage (this tab only) | Persisted, queryable by staff and across devices |
+| Orders | In-memory server store (resets on restart) | Persisted, queryable across devices |
 | Payments | `MockPaymentProvider` | Stripe PaymentIntents + webhooks |
 | Order status | Derived from the clock | Set by kitchen staff, pushed over SSE |
-| Admin auth | **Not built** | Real auth in Next.js Proxy (*Middleware, renamed in v16*) |
+| Admin auth | Mock passcode gate in Proxy (*Middleware, renamed in v16*) | Per-user accounts, hashed credentials, roles, session expiry |
 
-Admin auth is deliberately absent rather than faked. A pretend login invites
-someone to treat the admin area as protected when it isn't.
+The staff gate is a demonstration, and is labelled as one on every page it
+protects. It genuinely blocks access — the shape is right — but it is a shared
+passcode and a constant cookie, not authentication. See §5c.
 
 ---
 
@@ -331,7 +374,7 @@ Targeting WCAG 2.2 AA:
 | **3. Menu & customisation** | Menu page, URL-driven category filtering, product detail pages, generic option customiser, quantity, special instructions | ✅ **Done** |
 | **4. Cart & order configuration** | Cart with line editing, promo codes, delivery/pickup, ASAP or scheduled timing, customer details, validation | ✅ **Done** |
 | **5. Checkout & confirmation** | Checkout, mock payment, `/api/checkout` recomputing totals server-side, order creation, confirmation and simulated tracking | ✅ **Done** |
-| **6. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | Next |
+| **6. Admin** | Dashboard, order queue, status transitions, menu management, availability toggle | ✅ **Done** |
 | **8. Integration** | Stripe behind the existing adapter, database behind the existing repository, admin auth in Proxy | |
 
 Each stage is shippable: nothing depends on a stage after it.

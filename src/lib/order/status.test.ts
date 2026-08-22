@@ -10,11 +10,15 @@ import type { Order } from "../types";
 const base = (
   type: "delivery" | "pickup",
   minutes: number,
-): Pick<Order, "createdAt" | "estimatedReadyAt" | "fulfillment" | "status"> => ({
+): Pick<
+  Order,
+  "createdAt" | "estimatedReadyAt" | "fulfillment" | "status" | "history"
+> => ({
   createdAt: new Date(2026, 7, 22, 18, 0).toISOString(),
   estimatedReadyAt: new Date(2026, 7, 22, 18, minutes).toISOString(),
   fulfillment: { type, timing: "asap" },
   status: "confirmed",
+  history: [{ status: "confirmed", at: new Date(2026, 7, 22, 18, 0).toISOString(), by: "system" }],
 });
 
 const at = (minutes: number) => new Date(2026, 7, 22, 18, minutes);
@@ -48,6 +52,26 @@ describe("deriveStatus", () => {
       expect(deriveStatus(delivery, at(minute))).toBe(first);
       expect(deriveStatus(delivery, at(minute))).toBe(first);
     }
+  });
+
+  it("stops simulating once staff have set a status", () => {
+    // The clock says "preparing"; the kitchen says the food is ready. The
+    // kitchen wins.
+    const touched = {
+      ...delivery,
+      status: "ready" as const,
+      history: [
+        ...delivery.history,
+        { status: "ready" as const, at: new Date(2026, 7, 22, 18, 5).toISOString(), by: "staff" as const },
+      ],
+    };
+    expect(deriveStatus(touched, at(10))).toBe("ready");
+    // ...and it does not drift back as time passes.
+    expect(deriveStatus(touched, at(35))).toBe("ready");
+  });
+
+  it("still simulates an order staff have not touched", () => {
+    expect(deriveStatus(delivery, at(10))).toBe("preparing");
   });
 
   it("keeps a cancelled order cancelled", () => {

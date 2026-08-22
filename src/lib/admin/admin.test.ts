@@ -1,0 +1,291 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { calculateStats } from "./stats";
+import {
+  createMenuItem,
+  deleteMenuItem,
+  setMenuItemAvailability,
+  updateMenuItem,
+  type MenuItemInput,
+} from "./menu-admin";
+import { isValidPasscode, isValidSession, sessionCookieValue } from "./auth";
+import { resetStore } from "../server/store";
+import { getMenuItemBySlug, getMenuItems } from "../data/repository";
+import {
+  getOrder,
+  listOrders,
+  saveOrder,
+  updateOrderStatus,
+} from "../order/order-repository";
+import { deriveStatus } from "../order/status";
+import type { Order } from "../types";
+
+const NOW = new Date(2026, 7, 22, 19, 0);
+
+const order = (over: Partial<Order> = {}): Order => ({
+  id: `ord_${Math.random()}`,
+  reference: `UT-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+  createdAt: NOW.toISOString(),
+  customer: { name: "Marta K", email: "m@example.com", phone: "+493055501420" },
+  fulfillment: { type: "delivery", timing: "asap" },
+  lines: [],
+  totals: { subtotal: 2000, discount: 0, deliveryFee: 199, tax: 350, total: 2199 },
+  status: "confirmed",
+  history: [{ status: "confirmed", at: NOW.toISOString(), by: "system" }],
+  payment: {
+    provider: "mock",
+    status: "succeeded",
+    reference: "mock_x",
+    amount: 2199,
+    processedAt: NOW.toISOString(),
+  },
+  estimatedReadyAt: new Date(NOW.getTime() + 40 * 60_000).toISOString(),
+  ...over,
+});
+
+beforeEach(() => resetStore());
+
+describe("dashboard stats", () => {
+  it("counts today's orders and revenue", () => {
+    const stats = calculateStats([order(), order()], NOW);
+    expect(stats.ordersToday).toBe(2);
+    expect(stats.revenueToday).toBe(4398);
+    expect(stats.averageOrderValue).toBe(2199);
+  });
+
+  it("ignores orders from other days", () => {
+    const yesterday = order({
+      createdAt: new Date(2026, 7, 21, 19, 0).toISOString(),
+    });
+    const stats = calculateStats([order(), yesterday], NOW);
+    expect(stats.ordersToday).toBe(1);
+    expect(stats.revenueToday).toBe(2199);
+  });
+
+  it("counts a cancelled order but takes no revenue from it", () => {
+    const cancelled = order({ status: "cancelled" });
+    const stats = calculateStats([order(), cancelled], NOW);
+    expect(stats.ordersToday).toBe(2);
+    expect(stats.revenueToday).toBe(2199);
+  });
+
+  it("returns zeroes for a quiet day rather than dividing by zero", () => {
+    expect(calculateStats([], NOW)).toMatchObject({
+      ordersToday: 0,
+      revenueToday: 0,
+      averageOrderValue: 0,
+    });
+  });
+
+  it("separates pickup orders awaiting collection from deliveries en route", () => {
+    const ready = (type: "pickup" | "delivery") =>
+      order({
+        fulfillment: { type, timing: "asap" },
+        status: "ready",
+        history: [
+          { status: "confirmed", at: NOW.toISOString(), by: "system" },
+          { status: "ready", at: NOW.toISOString(), by: "staff" },
+        ],
+      });
+    const enRoute = order({
+      status: "outForDelivery",
+      history: [
+        { status: "confirmed", at: NOW.toISOString(), by: "system" },
+        { status: "outForDelivery", at: NOW.toISOString(), by: "staff" },
+      ],
+    });
+
+    const stats = calculateStats([ready("pickup"), ready("delivery"), enRoute], NOW);
+    expect(stats.awaitingPickup).toBe(1);
+    expect(stats.outForDelivery).toBe(1);
+  });
+
+  it("reflects simulated progress on orders staff have not touched", () => {
+    // 20 minutes into a 40-minute window, an untouched order is "preparing".
+    const midway = new Date(NOW.getTime() + 20 * 60_000);
+    expect(calculateStats([order()], midway).preparing).toBe(1);
+  });
+});
+
+describe("order repository", () => {
+  it("stores and returns an order by reference", async () => {
+    const saved = await saveOrder(order({ reference: "UT-AAAAA" }));
+    expect(saved.reference).toBe("UT-AAAAA");
+    expect((await getOrder("UT-AAAAA"))?.reference).toBe("UT-AAAAA");
+  });
+
+  it("returns null for an unknown reference", async () => {
+    expect(await getOrder("UT-ZZZZZ")).toBeNull();
+  });
+
+  it("lists newest first", async () => {
+    await saveOrder(order({ reference: "UT-OLD", createdAt: new Date(2026, 7, 22, 10).toISOString() }));
+    await saveOrder(order({ reference: "UT-NEW", createdAt: new Date(2026, 7, 22, 18).toISOString() }));
+    expect((await listOrders()).map((o) => o.reference)).toEqual(["UT-NEW", "UT-OLD"]);
+  });
+
+  it("hands out copies, so a caller cannot mutate the store", async () => {
+    await saveOrder(order({ reference: "UT-COPY" }));
+    const fetched = await getOrder("UT-COPY");
+    fetched!.status = "cancelled";
+    expect((await getOrder("UT-COPY"))?.status).toBe("confirmed");
+  });
+
+  it("records a staff status change in the history", async () => {
+    await saveOrder(order({ reference: "UT-HIST" }));
+    const updated = await updateOrderStatus("UT-HIST", "preparing", "On the grill");
+
+    expect(updated?.status).toBe("preparing");
+    expect(updated?.history).toHaveLength(2);
+    expect(updated?.history.at(-1)).toMatchObject({
+      status: "preparing",
+      note: "On the grill",
+      by: "staff",
+    });
+  });
+
+  it("makes a staff status override the clock simulation", async () => {
+    await saveOrder(order({ reference: "UT-OVER" }));
+    const updated = await updateOrderStatus("UT-OVER", "ready");
+
+    // Two minutes in, the simulation would still say "confirmed".
+    const soon = new Date(NOW.getTime() + 2 * 60_000);
+    expect(deriveStatus(updated!, soon)).toBe("ready");
+  });
+
+  it("returns null when updating an order that doesn't exist", async () => {
+    expect(await updateOrderStatus("UT-NOPE", "ready")).toBeNull();
+  });
+});
+
+describe("menu management", () => {
+  const input: MenuItemInput = {
+    name: "Chilli Cheese Fries",
+    description: "Fries, chilli, cheese sauce, jalapeños.",
+    categoryId: "cat-sides",
+    basePrice: 650,
+    available: true,
+    featured: false,
+    tags: ["spicy"],
+    allergens: ["milk"],
+    kitchenMinutes: 8,
+  };
+
+  it("creates an item that appears on the customer menu", async () => {
+    const result = await createMenuItem(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.item.slug).toBe("chilli-cheese-fries");
+    expect(await getMenuItemBySlug("chilli-cheese-fries")).not.toBeNull();
+  });
+
+  it("gives a duplicate name a distinct slug rather than colliding", async () => {
+    const first = await createMenuItem(input);
+    const second = await createMenuItem(input);
+    if (!first.ok || !second.ok) throw new Error("expected both to succeed");
+    expect(second.item.slug).toBe(`${first.item.slug}-2`);
+  });
+
+  it("rejects an empty name, a bad category and a negative price", async () => {
+    expect(await createMenuItem({ ...input, name: "  " })).toMatchObject({ ok: false, field: "name" });
+    expect(await createMenuItem({ ...input, categoryId: "nope" })).toMatchObject({ ok: false, field: "categoryId" });
+    expect(await createMenuItem({ ...input, basePrice: -1 })).toMatchObject({ ok: false, field: "basePrice" });
+    expect(await createMenuItem({ ...input, basePrice: 12.5 })).toMatchObject({ ok: false, field: "basePrice" });
+  });
+
+  it("edits an item without changing its slug, so links keep working", async () => {
+    const created = await createMenuItem(input);
+    if (!created.ok) throw new Error("expected success");
+
+    const updated = await updateMenuItem(created.item.id, {
+      ...input,
+      name: "Loaded Chilli Fries",
+      basePrice: 750,
+    });
+    if (!updated.ok) throw new Error("expected success");
+
+    expect(updated.item.name).toBe("Loaded Chilli Fries");
+    expect(updated.item.basePrice).toBe(750);
+    expect(updated.item.slug).toBe(created.item.slug);
+  });
+
+  it("keeps an edited item's option groups", async () => {
+    const items = await getMenuItems();
+    const burger = items.find((item) => item.slug === "urban-classic")!;
+    expect(burger.optionGroups.length).toBeGreaterThan(0);
+
+    const updated = await updateMenuItem(burger.id, {
+      name: burger.name,
+      description: burger.description,
+      categoryId: burger.categoryId,
+      basePrice: 1495,
+      available: true,
+      featured: burger.featured,
+      tags: burger.tags,
+      allergens: burger.allergens,
+      kitchenMinutes: burger.kitchenMinutes,
+    });
+    if (!updated.ok) throw new Error("expected success");
+    expect(updated.item.optionGroups).toHaveLength(burger.optionGroups.length);
+    expect(updated.item.basePrice).toBe(1495);
+  });
+
+  it("marks an item unavailable without deleting it", async () => {
+    const items = await getMenuItems();
+    const burger = items.find((item) => item.slug === "urban-classic")!;
+
+    await setMenuItemAvailability(burger.id, false);
+    const after = await getMenuItemBySlug("urban-classic");
+    expect(after?.available).toBe(false);
+    expect(after).not.toBeNull();
+
+    await setMenuItemAvailability(burger.id, true);
+    expect((await getMenuItemBySlug("urban-classic"))?.available).toBe(true);
+  });
+
+  it("hides an unavailable item from an availableOnly query", async () => {
+    const items = await getMenuItems();
+    const burger = items.find((item) => item.slug === "urban-classic")!;
+    await setMenuItemAvailability(burger.id, false);
+
+    const available = await getMenuItems({ availableOnly: true });
+    expect(available.some((item) => item.slug === "urban-classic")).toBe(false);
+  });
+
+  it("removes an item from the customer menu", async () => {
+    const before = (await getMenuItems()).length;
+    const items = await getMenuItems();
+    const target = items.find((item) => item.slug === "craft-lemonade")!;
+
+    expect(await deleteMenuItem(target.id)).toEqual({ ok: true });
+    expect((await getMenuItems()).length).toBe(before - 1);
+    expect(await getMenuItemBySlug("craft-lemonade")).toBeNull();
+  });
+
+  it("reports a missing item rather than failing silently", async () => {
+    expect(await deleteMenuItem("itm-nope")).toMatchObject({ ok: false });
+    expect(await setMenuItemAvailability("itm-nope", false)).toMatchObject({ ok: false });
+  });
+
+  it("does not leak edits into the factory menu", async () => {
+    const items = await getMenuItems();
+    await deleteMenuItem(items[0].id);
+    resetStore();
+    expect((await getMenuItems()).length).toBe(items.length);
+  });
+});
+
+describe("mock staff auth", () => {
+  it("accepts the configured passcode and rejects anything else", () => {
+    expect(isValidPasscode("urbantable")).toBe(true);
+    expect(isValidPasscode("  urbantable  ")).toBe(true);
+    expect(isValidPasscode("wrong")).toBe(false);
+    expect(isValidPasscode("")).toBe(false);
+  });
+
+  it("accepts only its own session value", () => {
+    expect(isValidSession(sessionCookieValue())).toBe(true);
+    expect(isValidSession("anything-else")).toBe(false);
+    expect(isValidSession(undefined)).toBe(false);
+  });
+});

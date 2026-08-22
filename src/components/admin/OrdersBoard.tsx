@@ -1,0 +1,249 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { OrderDetail } from "./OrderDetail";
+import { StatusBadge } from "./StatusBadge";
+import { deriveStatus, statusLabel } from "@/lib/order/status";
+import { formatMoney } from "@/lib/money";
+import { RESTAURANT } from "@/lib/config/restaurant";
+import type { Order, OrderStatus } from "@/lib/types";
+
+/**
+ * The order queue.
+ *
+ * A list on the left, the selected order on the right; on narrow screens the
+ * detail replaces the list, because a kitchen tablet has no room for both.
+ * The selected order lives in the URL (`?order=UT-…`) so a specific order can
+ * be linked to from the dashboard and survives a refresh.
+ *
+ * Polls every 15 seconds. A kitchen screen sits untouched for long stretches,
+ * so new orders have to arrive on their own; with a real backend this becomes
+ * a server-sent event stream and the polling goes away.
+ */
+const POLL_MS = 15_000;
+
+type Filter = "active" | "all" | OrderStatus;
+
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "preparing", label: "Preparing" },
+  { value: "ready", label: "Ready" },
+  { value: "outForDelivery", label: "Out for delivery" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
+];
+
+export function OrdersBoard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selected = searchParams.get("order");
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("active");
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/orders", { cache: "no-store" });
+      if (!response.ok) throw new Error("failed");
+      const body = (await response.json()) as { orders: Order[] };
+      setOrders(body.orders);
+      setError(null);
+    } catch {
+      setError("Couldn't reach the order service.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // The first fetch is scheduled rather than called in the effect body, so it
+    // goes through the same path as every subsequent poll. `load` awaits a
+    // fetch before it touches state, but calling it directly here reads as a
+    // synchronous setState — to React's lint rules and to anyone skimming it.
+    const first = window.setTimeout(() => void load(), 0);
+    const id = window.setInterval(() => void load(), POLL_MS);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [load]);
+
+  const updateStatus = async (reference: string, status: OrderStatus) => {
+    const response = await fetch(`/api/admin/orders/${reference}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      setError("That status change didn't save.");
+      return;
+    }
+
+    const body = (await response.json()) as { order: Order };
+    setOrders((current) =>
+      current.map((order) =>
+        order.reference === body.order.reference ? body.order : order,
+      ),
+    );
+    // Keeps the dashboard's counters honest when staff navigate back to it.
+    router.refresh();
+  };
+
+  const withStatus = orders.map((order) => ({
+    order,
+    status: deriveStatus(order),
+  }));
+
+  const visible = withStatus.filter(({ status }) => {
+    if (filter === "all") return true;
+    if (filter === "active") {
+      return status !== "completed" && status !== "cancelled";
+    }
+    return status === filter;
+  });
+
+  const selectedOrder = orders.find((order) => order.reference === selected) ?? null;
+
+  const select = (reference: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (reference) params.set("order", reference);
+    else params.delete("order");
+    router.replace(`/admin/orders${params.size ? `?${params}` : ""}`, {
+      scroll: false,
+    });
+  };
+
+  const timeFormat = new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+            Orders
+          </h1>
+          <p className="mt-1 text-ink-muted">
+            {loading ? "Loading…" : `${orders.length} in total`}
+            {!loading && " · refreshes automatically"}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFilter(option.value)}
+              aria-pressed={filter === option.value}
+              className={`min-h-9 rounded-full px-3 text-sm font-medium transition-colors ${
+                filter === option.value
+                  ? "bg-ember text-on-ember"
+                  : "border border-line-strong bg-surface text-ink-muted hover:text-ink"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="mt-4 rounded-control bg-danger-soft p-3 text-sm font-medium text-danger">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[22rem_1fr]">
+        {/* ── Queue ────────────────────────────────────────────────────── */}
+        <section
+          aria-labelledby="queue-heading"
+          className={selectedOrder ? "hidden lg:block" : ""}
+        >
+          <h2 id="queue-heading" className="sr-only">
+            Order queue
+          </h2>
+
+          {!loading && visible.length === 0 ? (
+            <div className="rounded-card border border-line bg-surface p-8 text-center">
+              <p className="font-medium text-ink">Nothing here</p>
+              <p className="mt-2 text-sm text-ink-muted">
+                No orders match this filter.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {visible.map(({ order, status }) => (
+                <li key={order.reference}>
+                  <button
+                    type="button"
+                    onClick={() => select(order.reference)}
+                    aria-current={order.reference === selected ? "true" : undefined}
+                    className={`w-full rounded-card border p-4 text-left transition-colors ${
+                      order.reference === selected
+                        ? "border-ember bg-ember-soft"
+                        : "border-line bg-surface hover:border-line-strong"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-display font-semibold text-ink">
+                        {order.reference}
+                      </span>
+                      <StatusBadge
+                        status={status}
+                        fulfillmentType={order.fulfillment.type}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-sm text-ink-muted">
+                      {order.customer.name} ·{" "}
+                      {order.fulfillment.type === "delivery" ? "Delivery" : "Pickup"}
+                    </p>
+                    <p className="mt-0.5 text-sm text-ink-subtle">
+                      {timeFormat.format(new Date(order.createdAt))} ·{" "}
+                      {formatMoney(order.totals.total)}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* ── Detail ───────────────────────────────────────────────────── */}
+        <section aria-labelledby="detail-heading">
+          <h2 id="detail-heading" className="sr-only">
+            Order details
+          </h2>
+          {selectedOrder ? (
+            <OrderDetail
+              order={selectedOrder}
+              status={deriveStatus(selectedOrder)}
+              onStatusChange={(status) => updateStatus(selectedOrder.reference, status)}
+              onClose={() => select(null)}
+            />
+          ) : (
+            <div className="hidden h-full items-center justify-center rounded-card border border-dashed border-line-strong bg-surface p-10 text-center lg:flex">
+              <p className="text-ink-muted">
+                {orders.length === 0
+                  ? "Orders placed on the customer site appear here."
+                  : "Select an order to see its details."}
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <p className="mt-8 text-xs leading-relaxed text-ink-subtle">
+        Status set here replaces the simulated progress the customer sees on
+        their tracking page. {statusLabel("outForDelivery", "delivery")} is only
+        offered on delivery orders.
+      </p>
+    </div>
+  );
+}

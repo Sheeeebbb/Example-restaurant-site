@@ -5,19 +5,20 @@ import { Container } from "@/components/ui/Container";
 import { DietaryBadge } from "@/components/ui/Badge";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { ProductCustomizer } from "@/components/menu/ProductCustomizer";
-import {
-  getAllMenuSlugs,
-  getCategoryById,
-  getMenuItemBySlug,
-} from "@/lib/data/repository";
+import { getCategoryById, getMenuItemBySlug } from "@/lib/data/repository";
 import { resolvePhoto } from "@/lib/data/photos";
 import { formatMoney } from "@/lib/money";
 
-/** Pre-renders every product at build time; the menu is small and rarely changes. */
-export async function generateStaticParams() {
-  const slugs = await getAllMenuSlugs();
-  return slugs.map((slug) => ({ slug }));
-}
+/**
+ * Rendered per request, not built ahead.
+ *
+ * The menu is mutable now — staff can reprice a dish or mark it sold out from
+ * the admin area — so a page baked at build time would keep serving the old
+ * price until the next deploy. A real deployment with a database would use
+ * cache tags and revalidate on write instead of giving up static rendering
+ * entirely.
+ */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

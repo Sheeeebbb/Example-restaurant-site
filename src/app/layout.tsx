@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
-import { SiteHeader } from "@/components/layout/SiteHeader";
-import { SiteFooter } from "@/components/layout/SiteFooter";
 import { CartHydration } from "@/components/cart/CartHydration";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import "./globals.css";
 
 /**
+ * Root layout: document, fonts, and the cart's storage bridge — nothing else.
+ *
+ * Page chrome lives in the route-group layouts, because the customer site and
+ * the staff area need entirely different shells.
+ *
  * Two typefaces, each with a job.
  *
  * Fraunces (display serif) carries warmth and craft, and appears only in
@@ -42,32 +45,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper text-ink">
-        {/*
-          First tab stop on every page — WCAG 2.4.1 bypass blocks.
-
-          `sr-only` + `focus:not-sr-only` is Tailwind's own pattern and needs no
-          custom CSS. An earlier hand-rolled version parked the link at
-          `top: -100%` and moved it back on `:focus`; that rule lost the cascade
-          inside `@layer utilities`, so the link took focus while staying 900px
-          off-screen — a skip link that could be focused but never seen.
-
-          Padding is applied in the focus variant because `not-sr-only` resets
-          `padding` to 0; a plain `px-4` would be overridden and the visible
-          link would be a cramped box with its text against the edges.
-        */}
-        <a
-          href="#main"
-          className="sr-only rounded-control bg-ember text-sm font-medium text-on-ember focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-100 focus:px-4 focus:py-2"
-        >
-          Skip to main content
-        </a>
-
         <CartHydration />
-        <SiteHeader />
-        <main id="main" className="flex-1">
-          {children}
-        </main>
-        <SiteFooter />
+        {children}
       </body>
     </html>
   );

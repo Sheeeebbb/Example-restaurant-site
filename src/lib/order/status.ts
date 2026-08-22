@@ -26,11 +26,19 @@ const SCHEDULE = {
 } as const;
 
 export function deriveStatus(
-  order: Pick<Order, "createdAt" | "estimatedReadyAt" | "fulfillment" | "status">,
+  order: Pick<
+    Order,
+    "createdAt" | "estimatedReadyAt" | "fulfillment" | "status" | "history"
+  >,
   now: Date = new Date(),
 ): OrderStatus {
   // A cancelled order is a fact, not a stage — never override it.
   if (order.status === "cancelled") return "cancelled";
+
+  // Once the kitchen has touched this order, stop guessing. Simulated progress
+  // exists only to make an untouched demo order look alive; a real status set
+  // by staff always wins, even if the clock disagrees with it.
+  if (order.history?.some((event) => event.by === "staff")) return order.status;
 
   const created = new Date(order.createdAt).getTime();
   const ready = new Date(order.estimatedReadyAt).getTime();

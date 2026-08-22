@@ -256,6 +256,14 @@ export interface OrderStatusEvent {
   status: OrderStatus;
   at: IsoDateTime;
   note?: string;
+  /**
+   * Who moved the order to this status.
+   *
+   * Once staff have touched an order, the customer-facing tracker stops
+   * simulating progress from the clock and reports what the kitchen said —
+   * so this is load-bearing, not just an audit field.
+   */
+  by?: "system" | "staff";
 }
 
 export interface Order {

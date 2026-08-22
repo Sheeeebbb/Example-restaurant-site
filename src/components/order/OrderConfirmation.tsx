@@ -8,7 +8,7 @@ import { useOrderStore } from "@/lib/order/order-store";
 import { deriveStatus, statusLabel } from "@/lib/order/status";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
-import type { Order } from "@/lib/types";
+import type { Order, OrderStatus } from "@/lib/types";
 
 /**
  * Order confirmation and tracking.
@@ -26,6 +26,8 @@ export function OrderConfirmation({ reference }: { reference: string }) {
   const hasHydrated = useOrderStore((state) => state.hasHydrated);
 
   const [now, setNow] = useState(() => new Date());
+  /** A status the kitchen set by hand, which overrides the simulation. */
+  const [staffStatus, setStaffStatus] = useState<OrderStatus | null>(null);
 
   useEffect(() => {
     void useOrderStore.persist.rehydrate();
@@ -35,6 +37,45 @@ export function OrderConfirmation({ reference }: { reference: string }) {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  /**
+   * Ask the kitchen what it says.
+   *
+   * The customer's own copy of the order (items, address, receipt) comes from
+   * their browser — it is their data and it should not need a round trip. Only
+   * the STATUS is fetched, from an endpoint that returns nothing else, so an
+   * order reference on its own never unlocks anyone's personal details.
+   *
+   * Polling at 20s because a kitchen screen and a customer's phone are rarely
+   * in sync; a real backend would push this over SSE instead.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const response = await fetch(`/api/orders/${reference}/status`, {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const body = (await response.json()) as {
+          status: OrderStatus;
+          setByStaff: boolean;
+        };
+        if (!cancelled && body.setByStaff) setStaffStatus(body.status);
+      } catch {
+        // Offline or the server restarted: keep showing the simulated status
+        // rather than blanking a page the customer is watching.
+      }
+    };
+
+    void check();
+    const id = window.setInterval(() => void check(), 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [reference]);
 
   if (!hasHydrated) {
     return (
@@ -71,7 +112,7 @@ export function OrderConfirmation({ reference }: { reference: string }) {
     );
   }
 
-  const status = deriveStatus(order, now);
+  const status = staffStatus ?? deriveStatus(order, now);
   const isDelivery = order.fulfillment.type === "delivery";
   const readyAt = new Date(order.estimatedReadyAt);
 
