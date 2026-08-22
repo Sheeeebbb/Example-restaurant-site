@@ -54,7 +54,7 @@ describe("lead time", () => {
   });
 
   it("adds travel time for delivery", () => {
-    const zone = findZone("30303");
+    const zone = findZone("10969");
     expect(zone).not.toBeNull();
     expect(leadTimeMinutes("delivery", zone)).toBe(
       RESTAURANT.ordering.minimumPrepMinutes + zone!.estimatedMinutes,
@@ -106,7 +106,7 @@ describe("generateSlots", () => {
   });
 
   it("offers fewer delivery slots than pickup slots, because travel costs time", () => {
-    const zone = findZone("30317"); // slowest zone
+    const zone = findZone("12435"); // slowest zone
     const pickup = generateSlots(WED_LUNCH, "pickup", null);
     const delivery = generateSlots(WED_LUNCH, "delivery", zone);
     expect(delivery[0].slots.length).toBeLessThan(pickup[0].slots.length);
@@ -136,11 +136,11 @@ describe("isSlotStillValid", () => {
 
 describe("delivery zones", () => {
   it("normalizes casing and spacing", () => {
-    expect(normalizePostalCode(" 303 03 ")).toBe("30303");
+    expect(normalizePostalCode(" 109 69 ")).toBe("10969");
   });
 
   it("finds the zone covering a postal code", () => {
-    expect(findZone("30303")?.id).toBe("zone-core");
+    expect(findZone("10969")?.id).toBe("zone-core");
   });
 
   it("returns null outside the delivery area", () => {

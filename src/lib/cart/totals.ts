@@ -7,7 +7,7 @@ import type {
   Promotion,
 } from "../types";
 import { RESTAURANT } from "../config/restaurant";
-import { clampToZero, percentOf } from "../money";
+import { clampToZero, percentOf, vatWithin } from "../money";
 
 /**
  * The single pricing engine.
@@ -76,8 +76,13 @@ export function calculateTotals({
   const waivedByPromotion = fee > 0 && promotion?.kind === "free-delivery";
   const deliveryFee = waivedByThreshold || waivedByPromotion ? 0 : fee;
 
-  const tax = percentOf(subtotal - discount, RESTAURANT.fees.taxRatePercent);
-  const total = clampToZero(subtotal - discount + deliveryFee + tax);
+  const total = clampToZero(subtotal - discount + deliveryFee);
+
+  // VAT is INCLUDED in menu prices in this market, so it is extracted from the
+  // total rather than added to it. `tax` is a receipt line telling the customer
+  // how much of what they already paid was VAT — adding it on top would
+  // overcharge every order by the VAT rate.
+  const tax = vatWithin(total, RESTAURANT.fees.taxRatePercent);
 
   return { subtotal, discount, deliveryFee, tax, total };
 }

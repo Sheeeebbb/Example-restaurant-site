@@ -42,6 +42,17 @@ export function percentOf(cents: Cents, percent: number): Cents {
   return Math.round((cents * percent) / 100);
 }
 
+/**
+ * The VAT already contained inside a gross amount.
+ *
+ * Where menu prices are quoted inclusive of VAT, the tax is not added to the
+ * total — it is a portion of it. For a 19% rate, a 11,90 € gross price contains
+ * 11,90 × 19/119 of VAT, not 11,90 × 19/100.
+ */
+export function vatWithin(gross: Cents, ratePercent: number): Cents {
+  return Math.round((gross * ratePercent) / (100 + ratePercent));
+}
+
 /** Guards against negative prices from an over-generous discount. */
 export function clampToZero(cents: Cents): Cents {
   return Math.max(0, cents);

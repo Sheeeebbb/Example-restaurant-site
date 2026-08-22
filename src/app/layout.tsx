@@ -42,8 +42,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper text-ink">
-        {/* First tab stop on every page — WCAG 2.4.1 bypass blocks. */}
-        <a href="#main" className="skip-link rounded-control bg-ember px-4 py-2 text-sm font-medium text-on-ember">
+        {/*
+          First tab stop on every page — WCAG 2.4.1 bypass blocks.
+
+          `sr-only` + `focus:not-sr-only` is Tailwind's own pattern and needs no
+          custom CSS. An earlier hand-rolled version parked the link at
+          `top: -100%` and moved it back on `:focus`; that rule lost the cascade
+          inside `@layer utilities`, so the link took focus while staying 900px
+          off-screen — a skip link that could be focused but never seen.
+
+          Padding is applied in the focus variant because `not-sr-only` resets
+          `padding` to 0; a plain `px-4` would be overridden and the visible
+          link would be a cramped box with its text against the edges.
+        */}
+        <a
+          href="#main"
+          className="sr-only rounded-control bg-ember text-sm font-medium text-on-ember focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-100 focus:px-4 focus:py-2"
+        >
           Skip to main content
         </a>
 

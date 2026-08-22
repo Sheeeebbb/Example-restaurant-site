@@ -1,65 +1,101 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
+import { ButtonLink } from "@/components/ui/Button";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import { openingHoursSummary } from "@/lib/fulfillment/scheduling";
 
-export const metadata: Metadata = { title: "About" };
+export const metadata: Metadata = {
+  title: "About",
+  description: RESTAURANT.description,
+};
 
 export default function AboutPage() {
   const hours = openingHoursSummary();
 
   return (
-    <Container className="py-16">
+    <Container className="py-16 sm:py-20">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+        <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
           About {RESTAURANT.name}
         </h1>
 
-        <div className="mt-6 space-y-4 text-ink-muted">
-          <p className="leading-relaxed">
-            We opened on Edgewood Avenue with one oven, six tables and a
-            conviction that a neighbourhood restaurant should be somewhere you
-            eat on a Tuesday, not just a birthday.
+        <div className="mt-6 space-y-4 text-lg leading-relaxed text-ink-muted">
+          <p>
+            We opened on Oranienstraße with a flat top, a walk-in full of
+            vegetables, and one rule: cook everything to order, properly, and
+            charge a fair price for it.
           </p>
-          <p className="leading-relaxed">
-            Pasta is rolled every morning. Bread is proved for a day and a night.
-            The oven runs at 800&deg;F from noon until we close, and almost
-            everything on the menu meets it at some point.
+          <p>
+            Beef is ground fresh each morning and smashed to order. Bread is
+            baked in-house. Salads are dressed when you order them, not hours
+            before. Nothing sits under a heat lamp waiting for a courier.
           </p>
-          <p className="leading-relaxed">
-            The wine list is short, mostly natural, and changes when we find
-            something better.
+          <p>
+            Most of what we serve travels well, which is deliberate — a burger
+            that falls apart on the way to you is a burger we got wrong.
           </p>
         </div>
+      </div>
 
-        <h2 className="mt-12 font-display text-xl font-semibold text-ink">
-          Opening hours
-        </h2>
-        <dl className="mt-4 divide-y divide-line rounded-card border border-line bg-surface">
-          {hours.map(({ day, hours: range }) => (
-            <div key={day} className="flex justify-between gap-4 px-5 py-3 text-sm">
-              <dt className="text-ink-muted">{day}</dt>
-              <dd className={range === "Closed" ? "text-ink-subtle" : "font-medium text-ink"}>
-                {range}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <section
+          aria-labelledby="hours-heading"
+          className="rounded-card border border-line bg-surface p-6 sm:col-span-2 lg:col-span-1"
+        >
+          <h2 id="hours-heading" className="font-display text-xl font-semibold text-ink">
+            Opening hours
+          </h2>
+          <dl className="mt-4 space-y-1 text-sm">
+            {hours.map(({ day, hours: range }) => (
+              <div key={day} className="flex justify-between gap-4">
+                <dt className="text-ink-muted">{day}</dt>
+                <dd className={range === "Closed" ? "text-ink-subtle" : "font-medium text-ink"}>
+                  {range}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-        <h2 className="mt-12 font-display text-xl font-semibold text-ink">Find us</h2>
-        <address className="mt-4 text-ink-muted not-italic">
-          {RESTAURANT.address.line1}
-          <br />
-          {RESTAURANT.address.city}, {RESTAURANT.address.state}{" "}
-          {RESTAURANT.address.postalCode}
-          <br />
+        <section
+          aria-labelledby="find-heading"
+          className="rounded-card border border-line bg-surface p-6"
+        >
+          <h2 id="find-heading" className="font-display text-xl font-semibold text-ink">
+            Find us
+          </h2>
+          <address className="mt-4 text-sm not-italic leading-relaxed text-ink-muted">
+            {RESTAURANT.address.line1}
+            <br />
+            {RESTAURANT.address.postalCode} {RESTAURANT.address.city}
+          </address>
           <a
-            className="mt-2 inline-block underline-offset-4 hover:text-ink hover:underline"
+            className="mt-3 inline-block text-sm font-medium text-ink underline-offset-4 hover:underline"
             href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
           >
             {RESTAURANT.contact.phone}
           </a>
-        </address>
+        </section>
+
+        <section
+          aria-labelledby="allergen-heading"
+          className="rounded-card border border-line bg-surface p-6"
+        >
+          <h2 id="allergen-heading" className="font-display text-xl font-semibold text-ink">
+            Allergens
+          </h2>
+          <p className="mt-4 text-sm leading-relaxed text-ink-muted">
+            Every dish lists its allergens on the menu. If you need something
+            adapted, call us before ordering and we&rsquo;ll tell you honestly
+            whether we can do it safely.
+          </p>
+        </section>
+      </div>
+
+      <div className="mt-12">
+        <ButtonLink href="/menu" size="lg">
+          See the menu
+        </ButtonLink>
       </div>
     </Container>
   );

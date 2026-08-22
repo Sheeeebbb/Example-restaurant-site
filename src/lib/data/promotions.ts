@@ -17,11 +17,12 @@ import type {
 
 export const PROMOTIONS: Promotion[] = [
   {
-    code: "WELCOME10",
+    /** The code advertised on the homepage. Keep the two in step via `FIRST_ORDER_PROMO`. */
+    code: "WELCOME20",
     kind: "percentage",
-    value: 10,
-    description: "10% off your first order",
-    minimumSubtotal: 2000,
+    value: 20,
+    description: "20% off your first order",
+    minimumSubtotal: 1500,
     appliesTo: "all",
     active: true,
   },
@@ -29,8 +30,8 @@ export const PROMOTIONS: Promotion[] = [
     code: "PICKUP5",
     kind: "fixed",
     value: 500,
-    description: "$5 off when you collect",
-    minimumSubtotal: 2500,
+    description: "5 € off when you collect",
+    minimumSubtotal: 2000,
     appliesTo: ["pickup"],
     active: true,
   },
@@ -54,6 +55,15 @@ export const PROMOTIONS: Promotion[] = [
     expiresAt: "2024-09-01T00:00:00.000Z",
   },
 ];
+
+/**
+ * The promotion the homepage advertises.
+ *
+ * The banner reads its code, headline, and minimum from this one record, so the
+ * marketing copy cannot drift away from what the cart will actually accept.
+ * Changing the offer here changes both.
+ */
+export const FIRST_ORDER_PROMO = PROMOTIONS[0];
 
 export function findPromotion(code: string): Promotion | null {
   const normalized = code.trim().toUpperCase();

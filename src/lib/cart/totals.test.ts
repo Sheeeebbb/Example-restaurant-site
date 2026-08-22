@@ -24,9 +24,9 @@ const line = (unitPrice: number, quantity = 1): CartLine => ({
 const zone: DeliveryZone = {
   id: "zone-test",
   name: "Test Zone",
-  postalCodes: ["30303"],
-  deliveryFee: 499,
-  minimumOrder: 1500,
+  postalCodes: ["10969"],
+  deliveryFee: 299,
+  minimumOrder: 1000,
   estimatedMinutes: 25,
 };
 
@@ -69,7 +69,7 @@ describe("calculateTotals", () => {
       zone,
       promotion: null,
     });
-    expect(totals.deliveryFee).toBe(499);
+    expect(totals.deliveryFee).toBe(299);
   });
 
   it("waives delivery at or above the free-delivery threshold", () => {
@@ -102,7 +102,7 @@ describe("calculateTotals", () => {
       promotion: promo({ kind: "percentage", value: 10 }),
     });
     expect(totals.discount).toBe(200);
-    expect(totals.deliveryFee).toBe(499);
+    expect(totals.deliveryFee).toBe(299);
   });
 
   it("never discounts more than the subtotal", () => {
@@ -126,20 +126,37 @@ describe("calculateTotals", () => {
     expect(totals.total).toBeGreaterThanOrEqual(0);
   });
 
-  it("taxes the discounted subtotal, not the original", () => {
-    const withoutPromo = calculateTotals({
+  it("reports VAT as a portion of the total, never added on top", () => {
+    // Menu prices are VAT-inclusive, so a 10,00 € pickup order costs exactly
+    // 10,00 € and the tax line describes what is already inside it.
+    const totals = calculateTotals({
+      lines: [line(1000)],
+      fulfillmentType: "pickup",
+      zone: null,
+      promotion: null,
+    });
+    expect(totals.total).toBe(1000);
+    expect(totals.tax).toBeLessThan(totals.total);
+    expect(totals.tax).toBe(Math.round((1000 * 19) / 119));
+  });
+
+  it("shrinks the VAT line when a discount shrinks the total", () => {
+    const full = calculateTotals({
       lines: [line(10_000)],
       fulfillmentType: "pickup",
       zone: null,
       promotion: null,
     });
-    const withPromo = calculateTotals({
+    const halved = calculateTotals({
       lines: [line(10_000)],
       fulfillmentType: "pickup",
       zone: null,
       promotion: promo({ kind: "percentage", value: 50 }),
     });
-    expect(withPromo.tax).toBe(Math.round(withoutPromo.tax / 2));
+    // Computed from the halved total directly. Comparing against half of the
+    // full VAT would be off by a cent, because each is rounded once.
+    expect(halved.tax).toBe(Math.round((5000 * 19) / 119));
+    expect(halved.tax).toBeLessThan(full.tax);
   });
 
   it("keeps every component an integer number of cents", () => {
@@ -161,8 +178,9 @@ describe("calculateTotals", () => {
       zone,
       promotion: promo({ kind: "percentage", value: 15 }),
     });
+    // Tax is inside the total, not added to it.
     expect(totals.total).toBe(
-      totals.subtotal - totals.discount + totals.deliveryFee + totals.tax,
+      totals.subtotal - totals.discount + totals.deliveryFee,
     );
   });
 
@@ -176,20 +194,20 @@ describe("calculateTotals", () => {
     expect(totals).toEqual({
       subtotal: 0,
       discount: 0,
-      deliveryFee: 499,
-      tax: 0,
-      total: 499,
+      deliveryFee: 299,
+      tax: Math.round((299 * 19) / 119),
+      total: 299,
     });
   });
 });
 
 describe("deliveryShortfall", () => {
   it("reports how far below a zone minimum the basket is", () => {
-    expect(deliveryShortfall([line(1000)], "delivery", zone)).toBe(500);
+    expect(deliveryShortfall([line(600)], "delivery", zone)).toBe(400);
   });
 
   it("is zero once the basket qualifies", () => {
-    expect(deliveryShortfall([line(1500)], "delivery", zone)).toBe(0);
+    expect(deliveryShortfall([line(1000)], "delivery", zone)).toBe(0);
   });
 
   it("does not apply to pickup", () => {

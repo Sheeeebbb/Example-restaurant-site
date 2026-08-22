@@ -55,6 +55,19 @@
 
   /* --- Focus --- */
   --focus-ring: var(--ember);
+
+  /*
+    Fixed "poster" palette for inverted panels such as the promo banner.
+    These are declared ONCE and deliberately never redefined under
+    prefers-color-scheme: a panel built from --ink/--ink-inverse flips to a
+    light card in dark mode, which drops its ember accent to about 2:1. A promo
+    poster should look the same in both themes, so its colours do not follow
+    the scheme.
+  */
+  --poster: #1e1813;
+  --poster-fg: #fdf8f2;
+  --poster-muted: #c5b6a8;
+  --poster-accent: #ff8a4c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -122,6 +135,11 @@
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
 
+  --color-poster: var(--poster);
+  --color-poster-fg: var(--poster-fg);
+  --color-poster-muted: var(--poster-muted);
+  --color-poster-accent: var(--poster-accent);
+
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
 
@@ -175,15 +193,19 @@
 }
 
 @layer utilities {
-  /* Keyboard-only skip link: off-screen until focused */
-  .skip-link {
-    position: absolute;
-    left: 0.5rem;
-    top: -100%;
-    z-index: 100;
-    transition: top 0.15s ease;
+  /*
+    One entrance animation, used only on the hero. Applied via `motion-safe:`
+    so it never runs for anyone who asked for reduced motion.
+  */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
-  .skip-link:focus {
-    top: 0.5rem;
-  }
+
 }

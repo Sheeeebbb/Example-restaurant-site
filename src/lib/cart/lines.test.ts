@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildLineId, createCartLine, findUnsatisfiedGroups } from "./lines";
+import {
+  buildLineId,
+  canQuickAdd,
+  createCartLine,
+  defaultSelectionsFor,
+  findUnsatisfiedGroups,
+} from "./lines";
 import type { MenuItem, SelectedOption } from "../types";
 
 const sel = (groupId: string, optionId: string, priceDelta = 0): SelectedOption => ({
@@ -116,5 +122,79 @@ describe("findUnsatisfiedGroups", () => {
       sel("grp-extras", "opt-basil"),
     ];
     expect(findUnsatisfiedGroups(item, tooMany)).toContain("grp-extras");
+  });
+});
+
+describe("defaultSelectionsFor", () => {
+  it("picks the default option of each group that has one", () => {
+    const withDefault: MenuItem = {
+      ...item,
+      optionGroups: [
+        {
+          ...item.optionGroups[0],
+          options: [
+            { id: "opt-s", name: "Small", priceDelta: 0, available: true, isDefault: true },
+            { id: "opt-l", name: "Large", priceDelta: 600, available: true },
+          ],
+        },
+      ],
+    };
+    expect(defaultSelectionsFor(withDefault)).toEqual([
+      expect.objectContaining({ optionId: "opt-s", groupId: "grp-size" }),
+    ]);
+  });
+
+  it("skips a default that is sold out", () => {
+    const soldOutDefault: MenuItem = {
+      ...item,
+      optionGroups: [
+        {
+          ...item.optionGroups[0],
+          options: [
+            { id: "opt-s", name: "Small", priceDelta: 0, available: false, isDefault: true },
+            { id: "opt-l", name: "Large", priceDelta: 600, available: true },
+          ],
+        },
+      ],
+    };
+    expect(defaultSelectionsFor(soldOutDefault)).toEqual([]);
+  });
+});
+
+describe("canQuickAdd", () => {
+  it("is false when a required group has no default to fall back on", () => {
+    // `item`'s size group is required but has no isDefault option.
+    expect(canQuickAdd(item)).toBe(false);
+  });
+
+  it("is true once the required group has an available default", () => {
+    const withDefault: MenuItem = {
+      ...item,
+      optionGroups: [
+        {
+          ...item.optionGroups[0],
+          options: [
+            { id: "opt-s", name: "Small", priceDelta: 0, available: true, isDefault: true },
+            { id: "opt-l", name: "Large", priceDelta: 600, available: true },
+          ],
+        },
+      ],
+    };
+    expect(canQuickAdd(withDefault)).toBe(true);
+  });
+
+  it("is false for an item staff have marked unavailable", () => {
+    expect(canQuickAdd({ ...item, available: false })).toBe(false);
+  });
+});
+
+describe("every featured item can actually be quick-added", () => {
+  it("holds for the real seed menu", async () => {
+    const { MENU_ITEMS } = await import("../data/menu");
+    const featured = MENU_ITEMS.filter((entry) => entry.featured);
+    expect(featured.length).toBeGreaterThan(0);
+    for (const entry of featured) {
+      expect(canQuickAdd(entry), `${entry.name} cannot be quick-added`).toBe(true);
+    }
   });
 });

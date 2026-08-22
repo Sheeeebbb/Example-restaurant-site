@@ -5,12 +5,12 @@ const NOW = new Date("2026-08-22T18:00:00.000Z");
 
 describe("validatePromotion", () => {
   it("accepts a valid code that clears its minimum", () => {
-    const result = validatePromotion("WELCOME10", 3000, "delivery", NOW);
+    const result = validatePromotion("WELCOME20", 3000, "delivery", NOW);
     expect(result.ok).toBe(true);
   });
 
   it("is case-insensitive and ignores surrounding whitespace", () => {
-    const result = validatePromotion("  welcome10 ", 3000, "delivery", NOW);
+    const result = validatePromotion("  welcome20 ", 3000, "delivery", NOW);
     expect(result.ok).toBe(true);
   });
 
@@ -20,7 +20,7 @@ describe("validatePromotion", () => {
   });
 
   it("rejects a basket below the code's minimum", () => {
-    const result = validatePromotion("WELCOME10", 500, "delivery", NOW);
+    const result = validatePromotion("WELCOME20", 500, "delivery", NOW);
     expect(result).toMatchObject({ ok: false, reason: "below-minimum" });
   });
 

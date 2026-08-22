@@ -88,3 +88,45 @@ export function findUnsatisfiedGroups(
     })
     .map((group) => group.id);
 }
+
+/**
+ * The selections a one-tap "Add to cart" should use.
+ *
+ * Returns the `isDefault` option of every group that has one. This is what lets
+ * a menu card add a REAL, fully specified line instead of an incomplete one: the
+ * customer gets the standard build, exactly as if they had opened the customiser
+ * and changed nothing.
+ *
+ * It deliberately skips unavailable options, so a sold-out default never ends up
+ * in a basket.
+ */
+export function defaultSelectionsFor(item: MenuItem): SelectedOption[] {
+  return item.optionGroups.flatMap((group) => {
+    const preset = group.options.find(
+      (option) => option.isDefault && option.available,
+    );
+    if (!preset) return [];
+    return [
+      {
+        groupId: group.id,
+        groupName: group.name,
+        optionId: preset.id,
+        name: preset.name,
+        priceDelta: preset.priceDelta,
+      },
+    ];
+  });
+}
+
+/**
+ * Whether this item can be added in one tap, or needs the customiser first.
+ *
+ * True when applying the defaults above satisfies every required group. An item
+ * with a required choice and no sensible default — "pick your two sides" —
+ * returns false, and the card links through to the customiser instead of
+ * pretending it can add it.
+ */
+export function canQuickAdd(item: MenuItem): boolean {
+  if (!item.available) return false;
+  return findUnsatisfiedGroups(item, defaultSelectionsFor(item)).length === 0;
+}

@@ -1,16 +1,17 @@
 # Urban Table
 
-A restaurant ordering site for a fictional neighbourhood kitchen — browse a
-menu, customise dishes, and order for pickup or delivery.
+A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
+salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 1 of 8 — foundation.** The architecture, design system, domain
-model, pricing engine, and app shell are in place. The ordering flow itself is
-built in later stages; see [Roadmap](#roadmap).
+**Status: Stage 2 of 8 — visual foundation and homepage.** The architecture,
+design system, domain model, pricing engine, and the full homepage are in
+place. The menu, cart, and checkout flows are built in later stages; see
+[Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 55 unit tests over the pricing and scheduling logic
+npm test         # 62 unit tests over the pricing, scheduling and cart logic
 npm run build
 ```
 
@@ -44,8 +45,13 @@ trade only pays off if payments never arrive — and they are requirement #7.
 ### 1. Money is integer cents, everywhere
 
 `Cents` is a number of cents, never a float, never a formatted string.
-Floating-point dollars reintroduce the `0.1 + 0.2` problem into people's bills.
+Floating-point euros reintroduce the `0.1 + 0.2` problem into people's bills.
 All arithmetic lives in `lib/money.ts` and only becomes a string at render time.
+
+**VAT is inside the price, not added to it.** Menu prices in this market are
+quoted inclusive of VAT, so `calculateTotals` *extracts* the tax for the receipt
+line rather than adding it on top. Getting this backwards would overcharge every
+order by 19%.
 
 ### 2. Options and extras are one concept
 
@@ -105,30 +111,37 @@ src/
 ├── app/
 │   ├── layout.tsx              Root shell: fonts, header/footer, skip link
 │   ├── globals.css             ← the entire design system lives here
-│   ├── page.tsx                Landing page
-│   ├── menu/                   Menu browsing + filtering        (stage 2)
-│   ├── cart/                   Cart review                      (stage 3)
-│   ├── checkout/               Fulfilment → details → payment   (stage 4)
-│   ├── order/track/            Order status                     (stage 5)
-│   ├── admin/                  Staff area                       (stage 6)
-│   └── api/                    Route handlers                   (stage 4+)
+│   ├── page.tsx                Homepage
+│   ├── about|contact/          Editorial pages
+│   ├── privacy|terms/          What the app actually does with data
+│   ├── menu/                   Menu browsing + filtering        (stage 3)
+│   ├── cart/                   Cart review                      (stage 4)
+│   ├── checkout/               Fulfilment → details → payment   (stage 5)
+│   ├── order/track/            Order status                     (stage 6)
+│   ├── admin/                  Staff area                       (stage 7)
+│   └── api/                    Route handlers                   (stage 5+)
 │
 ├── components/
-│   ├── layout/                 SiteHeader, SiteFooter
+│   ├── layout/                 SiteHeader, SiteFooter, Prose
 │   ├── ui/                     Button, Badge, Container
+│   ├── home/                   Hero, FeaturedMenu, PromoBanner, WhyChooseUs,
+│   │                           Testimonials, SectionHeading
+│   ├── menu/                   MenuItemCard, FoodImage, FoodGlyph,
+│   │                           AddToCartButton   ← reused by the menu in stage 3
 │   └── cart/                   CartButton, CartHydration
 │
 └── lib/
     ├── types.ts                The domain model. Start here.
-    ├── money.ts                Cents arithmetic and formatting
+    ├── money.ts                Cents arithmetic, formatting, VAT extraction
     ├── config/restaurant.ts    Hours, fees, delivery zones — all configuration
     ├── data/
     │   ├── menu.ts             Seed menu (stands in for the DB)
     │   ├── promotions.ts       Seed promo codes + validation
+    │   ├── photos.ts           Server-side photo resolution
     │   └── repository.ts       ← the swap point for a real backend
     ├── cart/
     │   ├── store.ts            Zustand store, persisted
-    │   ├── lines.ts            Line identity + option validation
+    │   ├── lines.ts            Line identity, option validation, defaults
     │   ├── totals.ts           ← the pricing engine (pure, shared client/server)
     │   └── selectors.ts        Derived cart values
     ├── fulfillment/
@@ -143,6 +156,32 @@ src/
 the same function can run in a Route Handler later. Two implementations of
 pricing is how a checkout ends up charging a different number from the one on
 screen.
+
+---
+
+## What actually works on the homepage
+
+The brief was explicit that nothing should *look* functional without *being*
+functional. So, on the homepage today:
+
+| Control | What it really does |
+| --- | --- |
+| **Add to cart** | Adds a fully specified line using the item's default options. The header count updates, and re-adding the same configuration merges into one line at quantity 2. |
+| **Order Delivery / Order Pickup** | Sets the cart's fulfilment mode — which drives delivery fees, minimums and lead times downstream — then goes to the menu. |
+| **Apply to my order** | Writes `WELCOME20` into the cart, where `calculateTotals` picks it up. The code is stored, not the discount, and it is re-validated on every render. |
+| **Cart badge** | Live count from the store, persisted across reloads. |
+
+Two guards keep this honest. A unit test asserts every featured item is
+genuinely quick-addable, so no card can ship an "Add to cart" button that
+couldn't complete. And `AddToCartButton` degrades rather than pretends: an item
+with a required choice and no sensible default renders "Choose options" and
+links to the customiser instead of adding something half-specified; a sold-out
+item renders a disabled "Sold out".
+
+The **Contact page has no form** for the same reason — there is no mail
+transport yet, so it gives the phone number and email address that actually
+reach the restaurant rather than a form that would silently discard what people
+type.
 
 ---
 
@@ -207,12 +246,12 @@ Targeting WCAG 2.2 AA:
 | Stage | Scope | Status |
 | --- | --- | --- |
 | **1. Foundation** | Stack, design system, domain model, data layer, cart engine, fulfilment rules, payment adapter, app shell | ✅ **Done** |
-| **2. Menu** | Menu page, category filtering, dietary filters, product detail, option customiser, add to cart | Next |
-| **3. Cart** | Cart page, quantity stepper, remove, promo codes, delivery/pickup toggle, mobile sticky bar | |
-| **4. Checkout** | Fulfilment step, address + zone validation, ASAP vs scheduled slots, customer details, mock payment, `/api/checkout` recomputing totals server-side | |
-| **5. Confirmation & tracking** | Order confirmation, reference lookup, status timeline | |
-| **6. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | |
-| **7. Polish** | Loading/empty/error states, real photography, metadata, keyboard + screen-reader audit | |
+| **2. Visual foundation & homepage** | Brand, navigation, hero, featured menu with working add-to-cart, promo banner, why-us, testimonials, footer, legal pages | ✅ **Done** |
+| **3. Menu** | Menu page, category filtering, dietary filters, product detail, full option customiser | Next |
+| **4. Cart** | Cart page, quantity stepper, remove, promo entry, delivery/pickup toggle, mobile sticky bar | |
+| **5. Checkout** | Fulfilment step, address + zone validation, ASAP vs scheduled slots, customer details, mock payment, `/api/checkout` recomputing totals server-side | |
+| **6. Confirmation & tracking** | Order confirmation, reference lookup, status timeline | |
+| **7. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | |
 | **8. Integration** | Stripe behind the existing adapter, database behind the existing repository, admin auth in Proxy | |
 
 Each stage is shippable: nothing depends on a stage after it.
@@ -226,5 +265,21 @@ are collected or stored** — `MockPaymentProvider` simulates the gateway,
 including its latency and failure paths, so the UI handles those states long
 before a real processor arrives.
 
-Menu photography goes in `public/menu/` under the filenames already referenced
-in `lib/data/menu.ts`; a warm gradient stands in until then.
+## Photography
+
+**There are no real photographs in this repository yet**, and the food is meant
+to be the visual focus — so this is the most valuable thing to add next.
+
+`resolvePhoto()` checks `public/menu/` on the server at render time. Drop
+`urban-classic.jpg` (and the other filenames listed in `lib/data/menu.ts`) into
+that folder and those cards start rendering optimised `next/image` photography
+on the next build — **no code change, no manifest to update**. `hero.jpg` fills
+the hero panel the same way.
+
+Until then, cards render a designed placeholder: a warm wash and a per-category
+line glyph, marked `aria-hidden` because it depicts nothing. No broken images
+and no 404s — a missing file is never requested.
+
+Guidance for the shoot: 4:3, at least 800px wide, warm natural light, neutral
+surroundings so the food supplies the colour. Write real `alt` text in
+`menu.ts` describing the dish, not the photograph.
