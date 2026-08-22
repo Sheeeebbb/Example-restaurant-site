@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Urban Table — Design System
+   --------------------------------------------------------------------------
+   Raw palette lives on :root as plain custom properties, and `@theme inline`
+   maps them onto Tailwind's token namespace. Because the theme references the
+   vars (rather than baking in values), re-declaring a var under a media query
+   or a [data-theme] scope re-skins every utility that uses it. A rebrand is
+   this file and nothing else.
+   ========================================================================== */
+
+:root {
+  /* --- Surfaces: warm paper, not clinical white. Food needs warm ground. --- */
+  --paper: #fffaf3;
+  --surface: #ffffff;
+  --surface-sunken: #f6efe5;
+  --surface-inverse: #1a1614;
+
+  /* --- Ink --- */
+  --ink: #1a1614;
+  --ink-muted: #6a5d55;
+  --ink-subtle: #93857c;
+  --ink-inverse: #fdf8f2;
+
+  /* --- Ember: the single accent. Terracotta, warm, appetite-forward. --- */
+  --ember: #c2410c;
+  --ember-hover: #9a330a;
+  /* Text/icon colour to use ON an ember fill. Flips in dark mode, where ember
+     is lightened for legibility against dark ground and can no longer carry
+     white text at 4.5:1. */
+  --on-ember: #ffffff;
+  --ember-soft: #fdece1;
+  --ember-border: #f4c9ae;
+
+  /* --- Herb: secondary accent, used sparingly for "available/open" states --- */
+  --herb: #3f6212;
+  --herb-soft: #eef4e2;
+
+  /* --- Feedback --- */
+  --danger: #b91c1c;
+  --danger-soft: #fdecec;
+  --on-danger: #ffffff;
+  --warning: #a16207;
+  --warning-soft: #fdf4e3;
+
+  /* --- Lines --- */
+  --line: #e8ddd0;
+  --line-strong: #d4c4b2;
+
+  /* --- Elevation: warm-tinted shadows; neutral grey shadow reads as dirt --- */
+  --shadow-sm: 0 1px 2px rgba(38, 26, 18, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(38, 26, 18, 0.10);
+  --shadow-lg: 0 12px 32px -8px rgba(38, 26, 18, 0.16);
+
+  /* --- Focus --- */
+  --focus-ring: var(--ember);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14110f;
+    --surface: #1e1a17;
+    --surface-sunken: #100e0c;
+    --surface-inverse: #fdf8f2;
+
+    --ink: #f5ece2;
+    --ink-muted: #b3a396;
+    --ink-subtle: #8a7b6f;
+    --ink-inverse: #1a1614;
+
+    /* Lightened so it clears 4.5:1 against the dark surface */
+    --ember: #ff8a4c;
+    --ember-hover: #ffa671;
+    --on-ember: #1a1614;
+    --ember-soft: #332014;
+    --ember-border: #5c3320;
+
+    --herb: #a3d06a;
+    --herb-soft: #1e2814;
+
+    --danger: #f87171;
+    --danger-soft: #2a1414;
+    --on-danger: #1a1614;
+    --warning: #e0b154;
+    --warning-soft: #2a2114;
+
+    --line: #322b26;
+    --line-strong: #473d36;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+
+    --focus-ring: var(--ember);
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inverse: var(--surface-inverse);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-ember: var(--ember);
+  --color-ember-hover: var(--ember-hover);
+  --color-on-ember: var(--on-ember);
+  --color-ember-soft: var(--ember-soft);
+  --color-ember-border: var(--ember-border);
+
+  --color-herb: var(--herb);
+  --color-herb-soft: var(--herb-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-danger: var(--on-danger);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-raised: var(--shadow-md);
+  --shadow-overlay: var(--shadow-lg);
+
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "kern", "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A single visible focus treatment everywhere. Never remove it — WCAG 2.4.7 */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--ember);
+    color: #fff;
+  }
+
+  /* Respect users who ask for less motion — WCAG 2.3.3 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Keyboard-only skip link: off-screen until focused */
+  .skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: -100%;
+    z-index: 100;
+    transition: top 0.15s ease;
+  }
+  .skip-link:focus {
+    top: 0.5rem;
+  }
+}
