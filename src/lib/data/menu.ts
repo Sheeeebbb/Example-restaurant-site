@@ -1,19 +1,29 @@
-import type { Category, MenuItem, OptionGroup } from "../types";
+import type { Category, MenuItem } from "../types";
+import {
+  addProtein,
+  breadChoice,
+  cookTemperature,
+  dessertAddOn,
+  dressing,
+  extras,
+  makeItAMeal,
+  milkChoice,
+  portionSize,
+  removals,
+  sauces,
+  standardRemovals,
+} from "./option-groups";
 
 /**
- * Seed menu.
+ * Seed menu — the stand-in for the `categories` and `menu_items` tables.
  *
- * Stand-in for the `categories` and `menu_items` tables — plain typed data with
- * no behaviour attached, so moving it into Postgres later is a change of source,
- * not of shape. See `lib/data/repository.ts`.
+ * Every item is plain data. Customisation is composed from the shared factories
+ * in `./option-groups`, so a new dish is a new entry here and nothing else: no
+ * component knows which product it is rendering.
  *
- * Prices are VAT-inclusive cents, the way they are quoted on the menu board.
- * Image paths point at `/public/menu/`; real photography drops in under those
- * names with no code change.
- *
- * Every REQUIRED option group carries exactly one `isDefault` option. That is
- * what makes one-tap add-to-cart honest: the card can add a real, fully
- * specified line rather than an incomplete one. See `defaultSelectionsFor`.
+ * Prices are VAT-inclusive cents, as quoted on the menu board. Image paths point
+ * at `/public/menu/`; real photography drops in under those names with no code
+ * change.
  */
 
 export const CATEGORIES: Category[] = [
@@ -21,7 +31,7 @@ export const CATEGORIES: Category[] = [
     id: "cat-burgers",
     slug: "burgers",
     name: "Burgers",
-    description: "Smashed daily on the flat top, in a toasted potato bun.",
+    description: "Smashed to order on the flat top, in a toasted potato bun.",
     sortOrder: 1,
   },
   {
@@ -61,100 +71,29 @@ export const CATEGORIES: Category[] = [
   },
 ];
 
-/* ── Reusable option groups ───────────────────────────────────────────────────
-   Cloned per item rather than shared by reference: a real database joins these
-   per item, and each item's availability flags drift independently once staff
-   start editing them.
-   ────────────────────────────────────────────────────────────────────────── */
-
-const pattyChoice = (): OptionGroup => ({
-  id: "grp-patty",
-  name: "How hungry are you?",
-  selection: "single",
-  required: true,
-  minSelections: 1,
-  maxSelections: 1,
-  options: [
-    { id: "opt-patty-single", name: "Single patty", priceDelta: 0, available: true, isDefault: true },
-    { id: "opt-patty-double", name: "Double patty", priceDelta: 350, available: true },
-  ],
-});
-
-const burgerExtras = (): OptionGroup => ({
-  id: "grp-burger-extras",
-  name: "Extras",
-  description: "Build it out.",
-  selection: "multi",
-  required: false,
-  minSelections: 0,
-  maxSelections: 5,
-  options: [
-    { id: "opt-ex-cheese", name: "Extra aged cheddar", priceDelta: 120, available: true },
-    { id: "opt-ex-bacon", name: "Smoked bacon", priceDelta: 180, available: true },
-    { id: "opt-ex-avocado", name: "Avocado", priceDelta: 200, available: true },
-    { id: "opt-ex-egg", name: "Fried egg", priceDelta: 150, available: true },
-    { id: "opt-ex-jalapeno", name: "Pickled jalapeños", priceDelta: 90, available: true },
-  ],
-});
-
-const breadChoice = (): OptionGroup => ({
-  id: "grp-bread",
-  name: "Bread",
-  selection: "single",
-  required: true,
-  minSelections: 1,
-  maxSelections: 1,
-  options: [
-    { id: "opt-bread-sourdough", name: "Toasted sourdough", priceDelta: 0, available: true, isDefault: true },
-    { id: "opt-bread-ciabatta", name: "Ciabatta", priceDelta: 0, available: true },
-    { id: "opt-bread-gf", name: "Gluten-free roll", priceDelta: 120, available: true },
-  ],
-});
-
-const addProtein = (): OptionGroup => ({
-  id: "grp-protein",
-  name: "Add protein",
-  selection: "single",
-  required: false,
-  minSelections: 0,
-  maxSelections: 1,
-  options: [
-    { id: "opt-pro-chicken", name: "Grilled chicken", priceDelta: 350, available: true },
-    { id: "opt-pro-halloumi", name: "Grilled halloumi", priceDelta: 300, available: true },
-    { id: "opt-pro-falafel", name: "Crispy falafel", priceDelta: 250, available: true },
-  ],
-});
-
-const portionSize = (): OptionGroup => ({
-  id: "grp-portion",
-  name: "Size",
-  selection: "single",
-  required: true,
-  minSelections: 1,
-  maxSelections: 1,
-  options: [
-    { id: "opt-size-regular", name: "Regular", priceDelta: 0, available: true, isDefault: true },
-    { id: "opt-size-large", name: "Large", priceDelta: 150, available: true },
-  ],
-});
-
 export const MENU_ITEMS: MenuItem[] = [
   /* ── Burgers ──────────────────────────────────────────────────────────── */
   {
     id: "itm-classic",
     slug: "urban-classic",
     categoryId: "cat-burgers",
-    name: "Urban Classic",
+    name: "Urban Classic Burger",
     description:
       "Aged beef, melted cheddar, house pickles, secret sauce, toasted potato bun.",
-    basePrice: 1050,
+    basePrice: 1395,
     image: { src: "/menu/urban-classic.jpg", alt: "Classic cheeseburger with melted cheddar and pickles" },
     tags: [],
     allergens: ["gluten", "milk", "egg", "mustard"],
     available: true,
     featured: true,
     kitchenMinutes: 12,
-    optionGroups: [pattyChoice(), burgerExtras()],
+    optionGroups: [
+      cookTemperature(),
+      extras(),
+      sauces(),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
   },
   {
     id: "itm-bbq-bacon",
@@ -163,30 +102,58 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Smoky BBQ Bacon",
     description:
       "Double-smoked bacon, crispy onions, aged cheddar and our own bourbon BBQ sauce.",
-    basePrice: 1290,
+    basePrice: 1595,
     image: { src: "/menu/smoky-bbq-bacon.jpg", alt: "Bacon burger stacked with crispy onions" },
     tags: [],
     allergens: ["gluten", "milk", "egg"],
     available: true,
     featured: true,
     kitchenMinutes: 13,
-    optionGroups: [pattyChoice(), burgerExtras()],
+    optionGroups: [
+      cookTemperature(),
+      extras(["opt-ex-bacon"]),
+      sauces(),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
+  },
+  {
+    id: "itm-double-smash",
+    slug: "double-smash-deluxe",
+    categoryId: "cat-burgers",
+    name: "Double Smash Deluxe",
+    description:
+      "Two thin-smashed patties, double cheddar, grilled onion, pickles, deluxe sauce.",
+    basePrice: 1795,
+    image: { src: "/menu/double-smash.jpg", alt: "Double smash burger with two patties" },
+    tags: [],
+    allergens: ["gluten", "milk", "egg", "mustard"],
+    available: true,
+    featured: false,
+    kitchenMinutes: 14,
+    optionGroups: [cookTemperature(), extras(), sauces(), standardRemovals(), makeItAMeal()],
   },
   {
     id: "itm-crispy-chicken",
     slug: "crispy-chicken-burger",
     categoryId: "cat-burgers",
-    name: "Crispy Chicken",
+    name: "Crispy Chicken Burger",
     description:
       "Buttermilk-brined thigh, slaw, sriracha mayo, butter-toasted bun.",
-    basePrice: 1150,
+    basePrice: 1445,
     image: { src: "/menu/crispy-chicken.jpg", alt: "Crispy fried chicken burger with slaw" },
     tags: ["spicy"],
     allergens: ["gluten", "milk", "egg"],
     available: true,
     featured: true,
     kitchenMinutes: 14,
-    optionGroups: [burgerExtras()],
+    // No cook temperature and no extra beef patty — neither applies to chicken.
+    optionGroups: [
+      extras(["opt-ex-patty"]),
+      sauces(),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
   },
   {
     id: "itm-truffle-mushroom",
@@ -194,14 +161,14 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-burgers",
     name: "Truffle Mushroom Swiss",
     description: "Roast garlic mushrooms, Swiss, truffle aioli, rocket.",
-    basePrice: 1350,
+    basePrice: 1595,
     image: { src: "/menu/truffle-mushroom.jpg", alt: "Mushroom and Swiss burger with rocket" },
     tags: [],
     allergens: ["gluten", "milk", "egg"],
     available: true,
     featured: false,
     kitchenMinutes: 13,
-    optionGroups: [pattyChoice(), burgerExtras()],
+    optionGroups: [cookTemperature(), extras(), sauces(), standardRemovals(), makeItAMeal()],
   },
   {
     id: "itm-garden",
@@ -210,14 +177,20 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Garden Burger",
     description:
       "Beetroot and black bean patty, smashed avocado, vegan chipotle mayo.",
-    basePrice: 1190,
+    basePrice: 1395,
     image: { src: "/menu/garden-burger.jpg", alt: "Plant-based burger with avocado" },
     tags: ["vegan", "vegetarian"],
     allergens: ["gluten", "soya"],
     available: true,
     featured: false,
     kitchenMinutes: 12,
-    optionGroups: [burgerExtras()],
+    // Meat and dairy extras are excluded rather than offered and refused.
+    optionGroups: [
+      extras(["opt-ex-bacon", "opt-ex-patty", "opt-ex-cheese", "opt-ex-egg"]),
+      sauces(),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
   },
 
   /* ── Sandwiches ───────────────────────────────────────────────────────── */
@@ -228,14 +201,19 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Slow-Braised Beef Dip",
     description:
       "Six-hour braised chuck, caramelised onion, Gruyère, rich dipping jus.",
-    basePrice: 1250,
+    basePrice: 1495,
     image: { src: "/menu/beef-dip.jpg", alt: "Beef dip sandwich with a pot of jus" },
     tags: [],
     allergens: ["gluten", "milk"],
     available: true,
     featured: true,
     kitchenMinutes: 12,
-    optionGroups: [breadChoice()],
+    optionGroups: [
+      breadChoice(),
+      extras(["opt-ex-patty"]),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
   },
   {
     id: "itm-chicken-club",
@@ -243,14 +221,20 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-sandwiches",
     name: "Grilled Chicken Club",
     description: "Chargrilled chicken, smoked bacon, avocado, herb mayo, tomato.",
-    basePrice: 1090,
+    basePrice: 1345,
     image: { src: "/menu/chicken-club.jpg", alt: "Stacked chicken club sandwich" },
     tags: [],
     allergens: ["gluten", "egg"],
     available: true,
     featured: false,
     kitchenMinutes: 11,
-    optionGroups: [breadChoice()],
+    optionGroups: [
+      breadChoice(),
+      extras(["opt-ex-patty", "opt-ex-bacon"]),
+      sauces(),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
   },
   {
     id: "itm-halloumi",
@@ -258,14 +242,43 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-sandwiches",
     name: "Halloumi & Roasted Pepper",
     description: "Grilled halloumi, sweet peppers, rocket, basil pesto.",
-    basePrice: 990,
+    basePrice: 1245,
     image: { src: "/menu/halloumi.jpg", alt: "Halloumi and roasted pepper sandwich" },
     tags: ["vegetarian"],
     allergens: ["gluten", "milk", "nuts"],
     available: true,
     featured: false,
     kitchenMinutes: 10,
-    optionGroups: [breadChoice()],
+    optionGroups: [
+      breadChoice(),
+      extras(["opt-ex-patty", "opt-ex-bacon"]),
+      standardRemovals(),
+      makeItAMeal(),
+    ],
+  },
+  {
+    id: "itm-chicken-wrap",
+    slug: "buttermilk-chicken-wrap",
+    categoryId: "cat-sandwiches",
+    name: "Buttermilk Chicken Wrap",
+    description: "Crispy chicken, baby gem, pickled chilli, ranch, soft tortilla.",
+    basePrice: 1295,
+    image: { src: "/menu/chicken-wrap.jpg", alt: "Rolled chicken wrap cut in half" },
+    tags: ["spicy"],
+    allergens: ["gluten", "milk", "egg"],
+    available: true,
+    featured: false,
+    kitchenMinutes: 11,
+    optionGroups: [
+      extras(["opt-ex-patty"]),
+      sauces(),
+      removals([
+        { id: "opt-no-chilli", name: "No pickled chilli" },
+        { id: "opt-no-lettuce", name: "No baby gem" },
+        { id: "opt-no-ranch", name: "No ranch" },
+      ]),
+      makeItAMeal(),
+    ],
   },
 
   /* ── Salads ───────────────────────────────────────────────────────────── */
@@ -276,14 +289,22 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Chicken Caesar",
     description:
       "Chargrilled chicken, baby gem, aged parmesan, sourdough croutons, proper Caesar dressing.",
-    basePrice: 1150,
+    basePrice: 1395,
     image: { src: "/menu/caesar.jpg", alt: "Chicken Caesar salad with shaved parmesan" },
     tags: [],
     allergens: ["gluten", "milk", "egg", "fish"],
     available: true,
     featured: true,
     kitchenMinutes: 9,
-    optionGroups: [],
+    optionGroups: [
+      dressing([{ id: "opt-dressing-caesar", name: "Caesar" }]),
+      addProtein(),
+      removals([
+        { id: "opt-no-croutons", name: "No croutons" },
+        { id: "opt-no-parmesan", name: "No parmesan" },
+        { id: "opt-no-anchovy", name: "No anchovy" },
+      ]),
+    ],
   },
   {
     id: "itm-quinoa",
@@ -292,14 +313,21 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Superfood Quinoa Bowl",
     description:
       "Tricolour quinoa, roast sweet potato, kale, pomegranate, tahini lemon dressing.",
-    basePrice: 1090,
+    basePrice: 1295,
     image: { src: "/menu/quinoa-bowl.jpg", alt: "Colourful quinoa and roast vegetable bowl" },
     tags: ["vegan", "vegetarian", "gluten-free"],
     allergens: ["sesame"],
     available: true,
     featured: true,
     kitchenMinutes: 8,
-    optionGroups: [addProtein()],
+    optionGroups: [
+      dressing([{ id: "opt-dressing-tahini", name: "Tahini lemon" }]),
+      addProtein(),
+      removals([
+        { id: "opt-no-pomegranate", name: "No pomegranate" },
+        { id: "opt-no-kale", name: "No kale" },
+      ]),
+    ],
   },
   {
     id: "itm-burrata-salad",
@@ -307,14 +335,36 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-salads",
     name: "Burrata & Heirloom Tomato",
     description: "Creamy burrata, heirloom tomatoes, basil, aged balsamic, olive oil.",
-    basePrice: 1250,
+    basePrice: 1445,
     image: { src: "/menu/burrata-salad.jpg", alt: "Burrata with sliced heirloom tomatoes" },
     tags: ["vegetarian", "gluten-free"],
     allergens: ["milk"],
     available: true,
     featured: false,
     kitchenMinutes: 7,
-    optionGroups: [],
+    optionGroups: [addProtein()],
+  },
+  {
+    id: "itm-poke",
+    slug: "hot-smoked-salmon-bowl",
+    categoryId: "cat-salads",
+    name: "Hot-Smoked Salmon Bowl",
+    description:
+      "Hot-smoked salmon, brown rice, edamame, cucumber, avocado, yuzu dressing.",
+    basePrice: 1595,
+    image: { src: "/menu/salmon-bowl.jpg", alt: "Salmon and rice bowl with avocado" },
+    tags: ["gluten-free"],
+    allergens: ["fish", "soya", "sesame"],
+    available: true,
+    featured: false,
+    kitchenMinutes: 9,
+    optionGroups: [
+      dressing([{ id: "opt-dressing-yuzu", name: "Yuzu" }]),
+      removals([
+        { id: "opt-no-edamame", name: "No edamame" },
+        { id: "opt-no-cucumber", name: "No cucumber" },
+      ]),
+    ],
   },
 
   /* ── Sides ────────────────────────────────────────────────────────────── */
@@ -324,14 +374,14 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-sides",
     name: "Skin-On Fries",
     description: "Twice-cooked, rosemary salt.",
-    basePrice: 390,
+    basePrice: 450,
     image: { src: "/menu/fries.jpg", alt: "Golden skin-on fries" },
     tags: ["vegan", "vegetarian"],
     allergens: [],
     available: true,
     featured: false,
     kitchenMinutes: 6,
-    optionGroups: [portionSize()],
+    optionGroups: [portionSize(), sauces()],
   },
   {
     id: "itm-truffle-fries",
@@ -339,14 +389,14 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-sides",
     name: "Truffle Parmesan Fries",
     description: "Truffle oil, aged parmesan, chives.",
-    basePrice: 550,
+    basePrice: 650,
     image: { src: "/menu/truffle-fries.jpg", alt: "Fries topped with parmesan and chives" },
     tags: ["vegetarian"],
     allergens: ["milk"],
     available: true,
     featured: false,
     kitchenMinutes: 6,
-    optionGroups: [portionSize()],
+    optionGroups: [portionSize(200)],
   },
   {
     id: "itm-sweet-potato",
@@ -354,7 +404,7 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-sides",
     name: "Sweet Potato Fries",
     description: "Crisp outside, sweet inside, chipotle mayo on the side.",
-    basePrice: 450,
+    basePrice: 550,
     image: { src: "/menu/sweet-potato-fries.jpg", alt: "Sweet potato fries with dip" },
     tags: ["vegetarian", "gluten-free"],
     allergens: ["egg"],
@@ -364,12 +414,27 @@ export const MENU_ITEMS: MenuItem[] = [
     optionGroups: [portionSize()],
   },
   {
+    id: "itm-slaw",
+    slug: "buttermilk-slaw",
+    categoryId: "cat-sides",
+    name: "Buttermilk Slaw",
+    description: "White cabbage, carrot, dill, buttermilk dressing.",
+    basePrice: 395,
+    image: { src: "/menu/slaw.jpg", alt: "Creamy buttermilk slaw" },
+    tags: ["vegetarian", "gluten-free"],
+    allergens: ["milk", "egg"],
+    available: true,
+    featured: false,
+    kitchenMinutes: 4,
+    optionGroups: [portionSize(120)],
+  },
+  {
     id: "itm-onion-rings",
     slug: "crispy-onion-rings",
     categoryId: "cat-sides",
     name: "Crispy Onion Rings",
     description: "Beer-battered, smoked paprika salt.",
-    basePrice: 490,
+    basePrice: 550,
     image: { src: "/menu/onion-rings.jpg", alt: "Stack of beer-battered onion rings" },
     tags: ["vegetarian"],
     allergens: ["gluten"],
@@ -377,7 +442,7 @@ export const MENU_ITEMS: MenuItem[] = [
     available: false,
     featured: false,
     kitchenMinutes: 7,
-    optionGroups: [],
+    optionGroups: [portionSize()],
   },
 
   /* ── Desserts ─────────────────────────────────────────────────────────── */
@@ -386,15 +451,15 @@ export const MENU_ITEMS: MenuItem[] = [
     slug: "salted-caramel-brownie",
     categoryId: "cat-desserts",
     name: "Salted Caramel Brownie",
-    description: "Warm, fudgy, salted caramel, vanilla ice cream.",
-    basePrice: 590,
+    description: "Warm, fudgy, salted caramel, sea salt.",
+    basePrice: 695,
     image: { src: "/menu/brownie.jpg", alt: "Warm brownie with ice cream" },
     tags: ["vegetarian"],
     allergens: ["gluten", "milk", "egg"],
     available: true,
     featured: false,
     kitchenMinutes: 5,
-    optionGroups: [],
+    optionGroups: [dessertAddOn()],
   },
   {
     id: "itm-cheesecake",
@@ -402,7 +467,7 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-desserts",
     name: "New York Cheesecake",
     description: "Dense, vanilla-flecked, macerated berry compote.",
-    basePrice: 650,
+    basePrice: 745,
     image: { src: "/menu/cheesecake.jpg", alt: "Slice of cheesecake with berry compote" },
     tags: ["vegetarian"],
     allergens: ["gluten", "milk", "egg"],
@@ -410,6 +475,47 @@ export const MENU_ITEMS: MenuItem[] = [
     featured: false,
     kitchenMinutes: 4,
     optionGroups: [],
+  },
+  {
+    id: "itm-soft-serve",
+    slug: "vanilla-soft-serve",
+    categoryId: "cat-desserts",
+    name: "Vanilla Soft Serve",
+    description: "Madagascan vanilla, in a cup or a cone.",
+    basePrice: 445,
+    image: { src: "/menu/soft-serve.jpg", alt: "Swirl of vanilla soft serve" },
+    tags: ["vegetarian", "gluten-free"],
+    allergens: ["milk"],
+    available: true,
+    featured: false,
+    kitchenMinutes: 3,
+    optionGroups: [
+      {
+        id: "grp-serve-style",
+        name: "Cup or cone",
+        selection: "single",
+        required: true,
+        minSelections: 1,
+        maxSelections: 1,
+        options: [
+          { id: "opt-serve-cup", name: "Cup", priceDelta: 0, available: true, isDefault: true },
+          { id: "opt-serve-cone", name: "Waffle cone", priceDelta: 80, available: true },
+        ],
+      },
+      {
+        id: "grp-topping",
+        name: "Toppings",
+        selection: "multi",
+        required: false,
+        minSelections: 0,
+        maxSelections: 3,
+        options: [
+          { id: "opt-top-fudge", name: "Hot fudge", priceDelta: 90, available: true },
+          { id: "opt-top-caramel", name: "Salted caramel", priceDelta: 90, available: true },
+          { id: "opt-top-sprinkles", name: "Sprinkles", priceDelta: 60, available: true },
+        ],
+      },
+    ],
   },
 
   /* ── Drinks ───────────────────────────────────────────────────────────── */
@@ -419,29 +525,29 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-drinks",
     name: "Craft Lemonade",
     description: "Pressed lemon, mint, sparkling water. Not too sweet.",
-    basePrice: 390,
+    basePrice: 450,
     image: { src: "/menu/lemonade.jpg", alt: "Cloudy lemonade over ice with mint" },
     tags: ["vegan", "vegetarian", "gluten-free"],
     allergens: [],
     available: true,
     featured: false,
     kitchenMinutes: 3,
-    optionGroups: [],
+    optionGroups: [portionSize(100)],
   },
   {
     id: "itm-cold-brew",
     slug: "cold-brew-coffee",
     categoryId: "cat-drinks",
     name: "Cold Brew Coffee",
-    description: "Steeped 18 hours, served over ice. Oat milk on request.",
-    basePrice: 420,
+    description: "Steeped 18 hours, served over ice.",
+    basePrice: 495,
     image: { src: "/menu/cold-brew.jpg", alt: "Cold brew coffee over ice" },
-    tags: ["vegan", "vegetarian", "gluten-free"],
+    tags: ["vegetarian", "gluten-free"],
     allergens: [],
     available: true,
     featured: false,
     kitchenMinutes: 3,
-    optionGroups: [],
+    optionGroups: [portionSize(100), milkChoice()],
   },
   {
     id: "itm-craft-beer",
@@ -449,7 +555,7 @@ export const MENU_ITEMS: MenuItem[] = [
     categoryId: "cat-drinks",
     name: "Local Craft Beer",
     description: "Rotating Berlin tap. Ask us what's on.",
-    basePrice: 490,
+    basePrice: 550,
     image: { src: "/menu/craft-beer.jpg", alt: "Glass of pale craft beer" },
     tags: ["vegetarian"],
     allergens: ["gluten"],
@@ -457,5 +563,38 @@ export const MENU_ITEMS: MenuItem[] = [
     featured: false,
     kitchenMinutes: 2,
     optionGroups: [],
+  },
+  {
+    id: "itm-water",
+    slug: "spring-water",
+    categoryId: "cat-drinks",
+    name: "Spring Water",
+    description: "Still or sparkling, chilled.",
+    basePrice: 350,
+    image: { src: "/menu/water.jpg", alt: "Bottle of chilled spring water" },
+    tags: ["vegan", "vegetarian", "gluten-free"],
+    allergens: [],
+    available: true,
+    featured: false,
+    kitchenMinutes: 1,
+    optionGroups: [
+      {
+        id: "grp-water-style",
+        name: "Still or sparkling",
+        // Deliberately NO default: guessing between these is a coin flip, and
+        // handing someone the wrong one is worse than asking. This is the
+        // required-without-default case the rest of the system is built to
+        // handle — the menu card degrades to "Choose options" instead of
+        // quick-adding, and the customiser blocks the add until it is answered.
+        selection: "single",
+        required: true,
+        minSelections: 1,
+        maxSelections: 1,
+        options: [
+          { id: "opt-water-still", name: "Still", priceDelta: 0, available: true },
+          { id: "opt-water-sparkling", name: "Sparkling", priceDelta: 0, available: true },
+        ],
+      },
+    ],
   },
 ];

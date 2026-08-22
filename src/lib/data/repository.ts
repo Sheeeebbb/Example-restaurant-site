@@ -27,6 +27,10 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   return clone(CATEGORIES.find((category) => category.slug === slug) ?? null);
 }
 
+export async function getCategoryById(id: string): Promise<Category | null> {
+  return clone(CATEGORIES.find((category) => category.id === id) ?? null);
+}
+
 export interface MenuQuery {
   /** Category slug. Omit for the full menu. */
   category?: string;

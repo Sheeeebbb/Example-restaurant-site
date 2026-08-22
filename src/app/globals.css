@@ -53,6 +53,15 @@
   --shadow-md: 0 4px 12px -2px rgba(38, 26, 18, 0.10);
   --shadow-lg: 0 12px 32px -8px rgba(38, 26, 18, 0.16);
 
+  /*
+    Height of the sticky site header.
+    The header wraps to two rows below `lg`, so anything else that sticks — the
+    menu's category bar, the product page's image column — must offset by this
+    or slide underneath it. Kept here rather than as a magic number at each call
+    site; if the header's rows or padding change, this is the one place to fix.
+  */
+  --header-height: 109px;
+
   /* --- Focus --- */
   --focus-ring: var(--ember);
 
@@ -68,6 +77,13 @@
   --poster-fg: #fdf8f2;
   --poster-muted: #c5b6a8;
   --poster-accent: #ff8a4c;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* One row from `lg` up. */
+    --header-height: 73px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

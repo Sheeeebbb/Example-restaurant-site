@@ -3,15 +3,15 @@
 A modern neighbourhood restaurant in Berlin serving burgers, sandwiches and
 salads — browse the menu, customise dishes, and order for delivery or pickup.
 
-**Status: Stage 2 of 8 — visual foundation and homepage.** The architecture,
-design system, domain model, pricing engine, and the full homepage are in
-place. The menu, cart, and checkout flows are built in later stages; see
-[Roadmap](#roadmap).
+**Status: Stage 3 of 8 — menu and product customisation.** The architecture,
+design system, domain model, pricing engine, homepage, full menu and the
+product customiser are in place. The cart page and checkout are built in later
+stages; see [Roadmap](#roadmap).
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 62 unit tests over the pricing, scheduling and cart logic
+npm test         # 93 unit tests over pricing, scheduling, cart and customisation
 npm run build
 ```
 
@@ -58,6 +58,14 @@ order by 19%.
 A required single-select `OptionGroup` is "choose a size". An optional
 multi-select one is "add extras". Same type, different `selection` mode — so the
 customiser UI, its validation, and its pricing are each written once.
+
+**Customisation is data, not per-product code.** Nothing in the app branches on
+"is this a burger?". `lib/data/option-groups.ts` holds composable factories —
+`extras()`, `sauces()`, `portionSize()`, `removals()` — and a product declares
+which it offers. `OptionGroupField` branches only on `group.selection`, so
+sizes, extras, sauces, ingredient removals and upsells all render, validate and
+price through one code path. A new dish is a new entry in `menu.ts`; a new
+*kind* of choice is one factory. Neither touches a component.
 
 ### 3. The data layer is `async` from day one
 
@@ -114,7 +122,8 @@ src/
 │   ├── page.tsx                Homepage
 │   ├── about|contact/          Editorial pages
 │   ├── privacy|terms/          What the app actually does with data
-│   ├── menu/                   Menu browsing + filtering        (stage 3)
+│   ├── menu/                   Menu listing + filtering
+│   │   └── [slug]/             Product detail + customiser
 │   ├── cart/                   Cart review                      (stage 4)
 │   ├── checkout/               Fulfilment → details → payment   (stage 5)
 │   ├── order/track/            Order status                     (stage 6)
@@ -127,7 +136,9 @@ src/
 │   ├── home/                   Hero, FeaturedMenu, PromoBanner, WhyChooseUs,
 │   │                           Testimonials, SectionHeading
 │   ├── menu/                   MenuItemCard, FoodImage, FoodGlyph,
-│   │                           AddToCartButton   ← reused by the menu in stage 3
+│   │                           AddToCartButton, CategoryFilter,
+│   │                           ProductCustomizer, OptionGroupField,
+│   │                           QuantityStepper
 │   └── cart/                   CartButton, CartHydration
 │
 └── lib/
@@ -136,12 +147,14 @@ src/
     ├── config/restaurant.ts    Hours, fees, delivery zones — all configuration
     ├── data/
     │   ├── menu.ts             Seed menu (stands in for the DB)
+    │   ├── option-groups.ts    ← composable customisation library
     │   ├── promotions.ts       Seed promo codes + validation
     │   ├── photos.ts           Server-side photo resolution
     │   └── repository.ts       ← the swap point for a real backend
     ├── cart/
     │   ├── store.ts            Zustand store, persisted
     │   ├── lines.ts            Line identity, option validation, defaults
+    │   ├── customization.ts    ← customiser rules (pure, UI-free)
     │   ├── totals.ts           ← the pricing engine (pure, shared client/server)
     │   └── selectors.ts        Derived cart values
     ├── fulfillment/
@@ -170,6 +183,8 @@ functional. So, on the homepage today:
 | **Order Delivery / Order Pickup** | Sets the cart's fulfilment mode — which drives delivery fees, minimums and lead times downstream — then goes to the menu. |
 | **Apply to my order** | Writes `WELCOME20` into the cart, where `calculateTotals` picks it up. The code is stored, not the discount, and it is re-validated on every render. |
 | **Cart badge** | Live count from the store, persisted across reloads. |
+| **Menu filtering** | Real URLs (`/menu?category=burgers`) rendered on the server — shareable, back-button correct, and working before JS loads. |
+| **Product customiser** | Live price as options change, quantity, special instructions, and required-option validation. Every choice reaches the cart. |
 
 Two guards keep this honest. A unit test asserts every featured item is
 genuinely quick-addable, so no card can ship an "Add to cart" button that
@@ -177,6 +192,12 @@ couldn't complete. And `AddToCartButton` degrades rather than pretends: an item
 with a required choice and no sensible default renders "Choose options" and
 links to the customiser instead of adding something half-specified; a sold-out
 item renders a disabled "Sold out".
+
+Required options are validated for real, and there is a product that proves it:
+**Spring Water** deliberately has no default for "still or sparkling", because
+guessing is a coin flip. Its menu card degrades to "Choose options" instead of
+quick-adding, and the customiser blocks the add — moving focus to the offending
+group — until the question is answered.
 
 The **Contact page has no form** for the same reason — there is no mail
 transport yet, so it gives the phone number and email address that actually
@@ -247,8 +268,8 @@ Targeting WCAG 2.2 AA:
 | --- | --- | --- |
 | **1. Foundation** | Stack, design system, domain model, data layer, cart engine, fulfilment rules, payment adapter, app shell | ✅ **Done** |
 | **2. Visual foundation & homepage** | Brand, navigation, hero, featured menu with working add-to-cart, promo banner, why-us, testimonials, footer, legal pages | ✅ **Done** |
-| **3. Menu** | Menu page, category filtering, dietary filters, product detail, full option customiser | Next |
-| **4. Cart** | Cart page, quantity stepper, remove, promo entry, delivery/pickup toggle, mobile sticky bar | |
+| **3. Menu & customisation** | Menu page, URL-driven category filtering, product detail pages, generic option customiser, quantity, special instructions | ✅ **Done** |
+| **4. Cart** | Cart page, line editing, remove, promo entry, delivery/pickup toggle, mobile sticky bar | Next |
 | **5. Checkout** | Fulfilment step, address + zone validation, ASAP vs scheduled slots, customer details, mock payment, `/api/checkout` recomputing totals server-side | |
 | **6. Confirmation & tracking** | Order confirmation, reference lookup, status timeline | |
 | **7. Admin** | Order queue, status transitions, menu management, availability toggle, sales summary | |

@@ -1,13 +1,20 @@
+import Link from "next/link";
 import { FoodImage } from "./FoodImage";
 import { AddToCartButton } from "./AddToCartButton";
 import { DietaryBadge } from "@/components/ui/Badge";
 import { formatMoney } from "@/lib/money";
+import { canQuickAdd } from "@/lib/cart/lines";
 import type { MenuItem } from "@/lib/types";
 
 /**
- * The menu item card, shared by the homepage's featured strip and — from stage 2
- * — the full menu listing. Presentational: it takes a resolved `photoSrc` rather
- * than touching the filesystem itself, so it stays usable from anywhere.
+ * The menu item card, shared by the homepage's featured strip and the menu page.
+ * Presentational: it takes a resolved `photoSrc` rather than touching the
+ * filesystem itself, so it stays usable from anywhere.
+ *
+ * Two actions sit side by side rather than one covering the whole card: the
+ * image and title open the product for customising, and the button adds the
+ * standard build in one tap. A card-wide click target would have swallowed the
+ * button, and nesting a button inside a link is invalid anyway.
  *
  * Only the dietary tags that change an ordering decision are surfaced. Listing
  * all five on every card turns useful signal into wallpaper, so "vegan",
@@ -25,6 +32,12 @@ export function MenuItemCard({
   priority?: boolean;
 }) {
   const badges = item.tags.filter((tag) => DECISION_TAGS.has(tag));
+  const href = `/menu/${item.slug}`;
+  // When an item can't be added in one tap, AddToCartButton already renders a
+  // "Choose options" link to this same page — a second "Customise" beside it
+  // would be two buttons pointing at one destination.
+  const showCustomise =
+    item.optionGroups.length > 0 && item.available && canQuickAdd(item);
 
   return (
     <article
@@ -32,7 +45,12 @@ export function MenuItemCard({
         item.available ? "" : "opacity-75"
       }`}
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-surface-sunken">
+      <Link
+        href={href}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="relative block aspect-[4/3] overflow-hidden bg-surface-sunken"
+      >
         <FoodImage
           src={photoSrc}
           alt={item.image.alt}
@@ -49,14 +67,24 @@ export function MenuItemCard({
             </span>
           </div>
         )}
-      </div>
+      </Link>
 
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-lg font-semibold leading-snug text-ink">
-            {item.name}
+          <h3 className="font-display text-lg font-semibold leading-snug">
+            {/*
+              The image above repeats this destination, so it is hidden from
+              assistive tech and removed from the tab order — one stop per card
+              rather than two identical ones.
+            */}
+            <Link
+              href={href}
+              className="text-ink underline-offset-4 hover:underline"
+            >
+              {item.name}
+            </Link>
           </h3>
-          <p className="shrink-0 font-semibold text-ink">
+          <p className="shrink-0 font-semibold tabular-nums text-ink">
             {formatMoney(item.basePrice)}
           </p>
         </div>
@@ -75,10 +103,20 @@ export function MenuItemCard({
           </ul>
         )}
 
-        {/* mt-auto pins the action to the bottom so buttons align across a row
+        {/* mt-auto pins the actions to the bottom so buttons align across a row
             of cards with different description lengths. */}
-        <div className="mt-auto pt-4">
-          <AddToCartButton item={item} className="w-full" />
+        <div className="mt-auto flex items-center gap-2 pt-4">
+          <AddToCartButton item={item} className="flex-1" />
+
+          {showCustomise && (
+            <Link
+              href={href}
+              className="inline-flex min-h-9 shrink-0 items-center rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+            >
+              Customise
+              <span className="sr-only"> {item.name}</span>
+            </Link>
+          )}
         </div>
       </div>
     </article>
