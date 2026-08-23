@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
-import { CartButton } from "@/components/cart/CartButton";
+import { CartMenu } from "@/components/cart/CartMenu";
+import { resolveMenuPhotos } from "@/lib/data/photos";
+import { getMenuItems } from "@/lib/data/repository";
 import { RESTAURANT } from "@/lib/config/restaurant";
 
 const NAV_LINKS = [
@@ -25,7 +27,17 @@ const NAV_LINKS = [
  * whole menu behind a tap and require a focus trap, an escape handler, and a
  * scroll lock. Revisit if the nav grows past five or six items.
  */
-export function SiteHeader() {
+export async function SiteHeader() {
+  /*
+   * The cart preview shows a thumbnail per line, and resolving a photograph
+   * touches the filesystem — server work. Resolved here and handed down, the
+   * same way the cart page does it, so the header's client half never fetches.
+   */
+  const items = await getMenuItems();
+  const categoryByItemId = Object.fromEntries(
+    items.map((item) => [item.id, item.categoryId]),
+  );
+
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-md">
       <Container>
@@ -82,9 +94,15 @@ export function SiteHeader() {
             inches to its left — so it dressed a navigation item up as a call to
             action and took the header to three rows at 360px for nothing.
             Ordering starts from the menu, and the menu has its own nav item.
+
+            On a pointer device the cart also previews its contents on hover;
+            see `CartMenu`. On touch it stays a plain link to the cart page.
           */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:order-3">
-            <CartButton />
+            <CartMenu
+              photoMap={resolveMenuPhotos()}
+              categoryByItemId={categoryByItemId}
+            />
           </div>
         </div>
       </Container>

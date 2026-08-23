@@ -90,10 +90,15 @@ export function CartLineRow({
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          {/* `allowRemove` lets minus fall off the bottom: at one it emits 0
+              and `setQuantity` deletes the line, which is what pressing minus
+              on a single item obviously means. */}
           <QuantityStepper
             quantity={line.quantity}
             onChange={(next) => setQuantity(line.lineId, next)}
             label=""
+            allowRemove
+            itemName={line.name}
           />
 
           <div className="flex items-center gap-4">
