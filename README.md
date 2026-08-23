@@ -92,6 +92,12 @@ checkout.
 when delivery pricing changes. A postal code that matches a `DELIVERY_ZONES`
 entry may override it with a zone-specific fee and minimum order.
 
+Where the vans go is `DELIVERY_AREA` in the same file — `minPostalCode`,
+`maxPostalCode` and the number of digits a code has here. Those three numbers
+are the delivery boundary for the whole application; the cart, the address form
+and the server all reach them through `lib/fulfillment/postal-code.ts` rather
+than repeating a range of their own.
+
 The flat default matters: without one, the cart would read "free delivery"
 until an address was entered, and then take it back at checkout.
 
@@ -267,7 +273,10 @@ src/
     │   ├── order-store.ts      The customer's own copy (sessionStorage)
     │   └── order-repository.ts ← server-side orders, shared with the kitchen
     ├── fulfillment/
+    │   ├── postal-code.ts      Is this code inside the delivery area? One rule, three callers
     │   ├── delivery.ts         Postal code → zone, fee, minimum
+    │   ├── address-autofill.ts What a lookup may overwrite — never a typed field
+    │   ├── address-lookup.ts   ← the seam for a real lookup service (none connected)
     │   └── scheduling.ts       Opening hours, lead times, ASAP vs scheduled slots
     └── payments/
         ├── types.ts            PaymentProvider interface

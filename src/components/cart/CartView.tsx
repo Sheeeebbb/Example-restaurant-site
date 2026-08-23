@@ -33,9 +33,12 @@ import { formatMoney } from "@/lib/money";
 export function CartView({
   photoMap,
   categoryByItemId,
+  addressLookupEnabled = false,
 }: {
   photoMap: Record<string, string | null>;
   categoryByItemId: Record<string, string>;
+  /** Resolved on the server: whether an address lookup service is connected. */
+  addressLookupEnabled?: boolean;
 }) {
   const router = useRouter();
 
@@ -187,6 +190,7 @@ export function CartView({
                   Your details
                 </h2>
                 <CustomerForm
+                  addressLookupEnabled={addressLookupEnabled}
                   fulfillmentType={fulfillmentType}
                   errors={fieldErrors}
                   showErrors={showErrors}

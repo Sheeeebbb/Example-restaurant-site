@@ -17,7 +17,7 @@ const valid: OrderDraft = {
   email: "marta@example.com",
   street: "Oranienstraße",
   houseNumber: "148",
-  postalCode: "10969",
+  postalCode: "8930",
   city: "Berlin",
   deliveryInstructions: "Buzzer 3B",
 };
@@ -105,18 +105,33 @@ describe("validateOrderDraft", () => {
   });
 
   it("rejects a postal code outside the delivery area, with a reason", () => {
-    const errors = validateOrderDraft({ ...valid, postalCode: "99999" }, "delivery");
-    expect(errors.postalCode).toMatch(/don't deliver/i);
+    const errors = validateOrderDraft({ ...valid, postalCode: "9999" }, "delivery");
+    expect(errors.postalCode).toMatch(/don't currently deliver/i);
   });
 
   it("rejects a short postal code differently from an uncovered one", () => {
-    expect(validateOrderDraft({ ...valid, postalCode: "109" }, "delivery").postalCode)
-      .toMatch(/five digits/i);
+    expect(validateOrderDraft({ ...valid, postalCode: "893" }, "delivery").postalCode)
+      .toMatch(/please enter/i);
   });
 
   it("accepts a postal code written with a space", () => {
-    expect(validateOrderDraft({ ...valid, postalCode: "109 69" }, "delivery").postalCode)
+    expect(validateOrderDraft({ ...valid, postalCode: "89 30" }, "delivery").postalCode)
       .toBeUndefined();
+  });
+
+  it("never lets a delivery order through on a postal code outside the area", () => {
+    for (const code of ["8929", "8941", "10969", "", "abcd", "89305"]) {
+      const errors = validateOrderDraft({ ...valid, postalCode: code }, "delivery");
+      expect(errors.postalCode, code || "(empty)").toBeTruthy();
+      expect(isDraftValid({ ...valid, postalCode: code }, "delivery")).toBe(false);
+    }
+  });
+
+  it("asks pickup customers nothing about postal codes", () => {
+    for (const code of ["", "8929", "not a code"]) {
+      expect(validateOrderDraft({ ...valid, postalCode: code }, "pickup").postalCode)
+        .toBeUndefined();
+    }
   });
 
   it("never requires delivery instructions", () => {
@@ -126,7 +141,7 @@ describe("validateOrderDraft", () => {
 });
 
 describe("validateTiming", () => {
-  const zone = findZone("10969");
+  const zone = findZone("8930");
   // A Wednesday lunchtime, when the kitchen is open.
   const now = new Date(2026, 7, 19, 12, 0, 0);
 
@@ -165,10 +180,10 @@ describe("converting a draft for the order", () => {
   });
 
   it("normalises the postal code and keeps instructions optional", () => {
-    expect(toAddress({ ...valid, postalCode: " 109 69 " })).toEqual({
+    expect(toAddress({ ...valid, postalCode: " 89 30 " })).toEqual({
       street: "Oranienstraße",
       houseNumber: "148",
-      postalCode: "10969",
+      postalCode: "8930",
       city: "Berlin",
       deliveryInstructions: "Buzzer 3B",
     });

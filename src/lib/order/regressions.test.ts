@@ -5,6 +5,7 @@ import type { OrderDraft } from "./validation";
 import { MENU_ITEMS } from "../data/menu";
 import { RESTAURANT } from "../config/restaurant";
 import { findZone } from "../fulfillment/delivery";
+import { calculateTotals } from "../cart/totals";
 
 /**
  * Regression tests for defects found in the QA pass.
@@ -20,7 +21,7 @@ const draft: OrderDraft = {
   email: "marta@example.com",
   street: "Oranienstraße",
   houseNumber: "148",
-  postalCode: "10969",
+  postalCode: "8930",
   city: "Berlin",
   deliveryInstructions: "",
 };
@@ -70,7 +71,7 @@ describe("regression: orders were accepted while the kitchen was closed", () => 
   });
 
   it("reports the same rule through the shared validator the UI uses", () => {
-    const zone = findZone("10969");
+    const zone = findZone("8930");
     const closed = new Date(2026, 7, 24, 19, 0);
     expect(validateTiming("asap", undefined, "delivery", zone, closed)).toBeTruthy();
     expect(validateTiming("asap", undefined, "delivery", zone, OPEN)).toBeNull();
@@ -134,10 +135,17 @@ describe("regression: free-text input was unbounded server-side", () => {
 });
 
 describe("regression: the delivery fee quoted was not always the fee charged", () => {
-  it("charges the zone's fee, which can exceed the flat default", () => {
-    const outer = findZone("12435");
-    expect(outer).not.toBeNull();
-    expect(outer!.deliveryFee).toBeGreaterThan(RESTAURANT.fees.deliveryFee);
+  it("prices delivery from the matched zone, not the flat default", () => {
+    const zone = findZone("8930");
+    expect(zone).not.toBeNull();
+    // The zone's own fee is what the customer is charged, whether it is above,
+    // below or equal to the flat fallback — the bug was reading the fallback
+    // once a zone had matched.
+    const pricier = { ...zone!, deliveryFee: zone!.deliveryFee + 150 };
+    expect(
+      calculateTotals({ lines: [], fulfillmentType: "delivery", zone: pricier, promotion: null })
+        .deliveryFee,
+    ).toBe(pricier.deliveryFee);
   });
 
   it("keeps the advertised 'from' price truthful — no zone is cheaper than it", async () => {

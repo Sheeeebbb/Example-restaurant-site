@@ -9,7 +9,8 @@ import {
   deliveryFeeWaiver,
   deliveryShortfall,
 } from "./totals";
-import { findZone, normalizePostalCode } from "../fulfillment/delivery";
+import { findZone } from "../fulfillment/delivery";
+import { checkPostalCode } from "../fulfillment/postal-code";
 import { validatePromotion } from "../data/promotions";
 import type { OrderTotals, Promotion } from "../types";
 
@@ -74,7 +75,10 @@ export function useCartSummary(): CartSummary {
     }
 
     const input = { lines, fulfillmentType, zone, promotion };
-    const postalCodeComplete = normalizePostalCode(postalCode).length >= 5;
+    // "Complete" means a well-formed code, not merely a long one: half-typed
+    // input must not be answered with "we don't deliver there".
+    const postal = checkPostalCode(postalCode);
+    const postalCodeSettled = postal.status === "deliverable" || postal.status === "outside";
 
     return {
       totals: calculateTotals(input),
@@ -82,7 +86,7 @@ export function useCartSummary(): CartSummary {
       promotionError,
       shortfall: deliveryShortfall(lines, fulfillmentType, zone),
       deliverable:
-        fulfillmentType === "pickup" || !postalCodeComplete || zone !== null,
+        fulfillmentType === "pickup" || !postalCodeSettled || zone !== null,
       deliveryFeeBeforeWaiver: baseDeliveryFee(fulfillmentType, zone),
       waiver: deliveryFeeWaiver(input),
       itemCount: countItems(lines),

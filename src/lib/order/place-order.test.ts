@@ -12,7 +12,7 @@ const draft: OrderDraft = {
   email: "marta@example.com",
   street: "Oranienstraße",
   houseNumber: "148",
-  postalCode: "10969",
+  postalCode: "8930",
   city: "Berlin",
   deliveryInstructions: "",
 };
@@ -128,7 +128,7 @@ describe("placeOrder — the happy path", () => {
     expect(result.order.fulfillment.address).toMatchObject({
       street: "Oranienstraße",
       houseNumber: "148",
-      postalCode: "10969",
+      postalCode: "8930",
       city: "Berlin",
     });
   });
@@ -217,7 +217,7 @@ describe("placeOrder — rejections", () => {
 
   it("refuses delivery to an uncovered postal code", async () => {
     const result = await placeOrder(
-      request({ draft: { ...draft, postalCode: "99999" } }),
+      request({ draft: { ...draft, postalCode: "9999" } }),
       NOW,
     );
     expect(result).toMatchObject({ ok: false, field: "postalCode" });

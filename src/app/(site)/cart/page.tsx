@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CartView } from "@/components/cart/CartView";
 import { resolveMenuPhotos } from "@/lib/data/photos";
 import { getMenuItems } from "@/lib/data/repository";
+import { isAddressLookupConfigured } from "@/lib/fulfillment/address-lookup";
 
 export const metadata: Metadata = { title: "Your cart" };
 
@@ -20,6 +21,12 @@ export default async function CartPage() {
   );
 
   return (
-    <CartView photoMap={resolveMenuPhotos()} categoryByItemId={categoryByItemId} />
+    <CartView
+      photoMap={resolveMenuPhotos()}
+      categoryByItemId={categoryByItemId}
+      /* Read here, on the server, so the credential a real provider needs never
+         has a route into the client bundle. */
+      addressLookupEnabled={isAddressLookupConfigured()}
+    />
   );
 }

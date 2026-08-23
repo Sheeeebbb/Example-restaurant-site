@@ -1,0 +1,120 @@
+import { DELIVERY_AREA } from "../config/restaurant";
+
+/**
+ * The one place that decides whether a postal code can be delivered to.
+ *
+ * Pure and UI-free, so the address form can use it for live feedback while the
+ * customer types, `validateOrderDraft` can use it to block the continue button,
+ * and the server can use it again before accepting the order — all reaching the
+ * same verdict, because there is only one implementation of the rule. Client
+ * checks are a courtesy; the server check is the control.
+ *
+ * The boundaries themselves live in `DELIVERY_AREA`, not here.
+ */
+
+export type PostalCodeStatus =
+  /** Nothing typed yet. */
+  | "empty"
+  /** Fewer digits than a postal code has — probably still typing. */
+  | "incomplete"
+  /** Right length or longer, but not a postal code: letters, punctuation, too many digits. */
+  | "malformed"
+  /** A real postal code, outside the area we drive to. */
+  | "outside"
+  /** A real postal code, inside the area. */
+  | "deliverable";
+
+export interface PostalCodeCheck {
+  status: PostalCodeStatus;
+  /** What to store and compare: the input minus the characters people type for legibility. */
+  normalized: string;
+  /** The numeric value, once it is a well-formed code. Null otherwise. */
+  value: number | null;
+  /** True only for a complete, in-range code. Never true while anything is uncertain. */
+  deliverable: boolean;
+  /**
+   * Why not, in the customer's words. Null when there is nothing to say —
+   * including while the code is merely unfinished, because telling someone
+   * their postal code is wrong after two digits is just impatience.
+   */
+  message: string | null;
+}
+
+/**
+ * Strips the characters people put in postal codes for legibility — spaces and
+ * hyphens — and nothing else.
+ *
+ * Deliberately does NOT strip letters or truncate to length. "89 30" and "8930"
+ * are the same code and both normalise to "8930", but "8930x" and "89305" stay
+ * as typed so the check below can reject them. An earlier version capped the
+ * result at the postal-code length, which turned the five-digit "89305" into a
+ * deliverable "8930" — a wrong address that passed every check on the way to
+ * the kitchen.
+ */
+export function normalizePostalCode(input: string): string {
+  return input.trim().replace(/[\s-]/g, "");
+}
+
+const OUTSIDE_AREA_MESSAGE =
+  "We're sorry, we don't currently deliver to this postal code.";
+
+export function checkPostalCode(input: string): PostalCodeCheck {
+  const normalized = normalizePostalCode(input);
+
+  if (!normalized) {
+    return { status: "empty", normalized, value: null, deliverable: false, message: null };
+  }
+
+  // Still shorter than a postal code, and made only of digits: they are typing.
+  if (/^\d+$/.test(normalized) && normalized.length < DELIVERY_AREA.digits) {
+    return {
+      status: "incomplete",
+      normalized,
+      value: null,
+      deliverable: false,
+      message: null,
+    };
+  }
+
+  if (!new RegExp(`^\\d{${DELIVERY_AREA.digits}}$`).test(normalized)) {
+    return {
+      status: "malformed",
+      normalized,
+      value: null,
+      deliverable: false,
+      message: `Postal codes here are ${DELIVERY_AREA.digits} digits.`,
+    };
+  }
+
+  const value = Number(normalized);
+  const inside =
+    value >= DELIVERY_AREA.minPostalCode && value <= DELIVERY_AREA.maxPostalCode;
+
+  return {
+    status: inside ? "deliverable" : "outside",
+    normalized,
+    value,
+    deliverable: inside,
+    message: inside ? null : OUTSIDE_AREA_MESSAGE,
+  };
+}
+
+/** True only for a complete, in-range code. */
+export function isDeliverablePostalCode(input: string): boolean {
+  return checkPostalCode(input).deliverable;
+}
+
+/**
+ * The error to show once the customer has tried to continue.
+ *
+ * Differs from `check.message` in one place only: an empty or half-typed code
+ * says nothing while they are still filling the form, but has to say something
+ * once they have asked to move on.
+ */
+export function postalCodeError(input: string): string | null {
+  const check = checkPostalCode(input);
+  if (check.status === "empty" || check.status === "incomplete") {
+    return "Please enter your postal code.";
+  }
+  return check.message;
+}

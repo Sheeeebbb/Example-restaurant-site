@@ -24,7 +24,8 @@ const line = (unitPrice: number, quantity = 1): CartLine => ({
 const zone: DeliveryZone = {
   id: "zone-test",
   name: "Test Zone",
-  postalCodes: ["10969"],
+  from: 8930,
+  to: 8940,
   deliveryFee: 299,
   minimumOrder: 1000,
   estimatedMinutes: 25,

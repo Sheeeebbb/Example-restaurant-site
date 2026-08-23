@@ -1,9 +1,18 @@
 "use client";
 
+import { useEffect, useRef, type ReactNode } from "react";
 import { useOrderDraftStore } from "@/lib/order/draft-store";
 import { useCartStore } from "@/lib/cart/store";
 import { FIELD_LIMITS, type DraftField, type FieldErrors } from "@/lib/order/validation";
-import { RESTAURANT } from "@/lib/config/restaurant";
+import { checkPostalCode } from "@/lib/fulfillment/postal-code";
+import { findZone } from "@/lib/fulfillment/delivery";
+import {
+  applyAutofill,
+  type AddressSuggestion,
+  type AutofillField,
+} from "@/lib/fulfillment/address-autofill";
+import { formatMoney } from "@/lib/money";
+import { DELIVERY_AREA, RESTAURANT } from "@/lib/config/restaurant";
 import type { FulfillmentType } from "@/lib/types";
 
 /**
@@ -15,7 +24,13 @@ import type { FulfillmentType } from "@/lib/types";
  * typed is just scolding them for not having finished.
  *
  * The postal code is mirrored into the cart store because it prices delivery;
- * everything identifying stays in the sessionStorage draft.
+ * everything identifying stays in the sessionStorage draft. It is asked for
+ * once, here, and every later step reads it back — the checkout summary, the
+ * fee, the order itself.
+ *
+ * Its verdict comes from `lib/fulfillment/postal-code.ts`, the same module the
+ * continue button and the server use, so the green line under the field and the
+ * rule that actually blocks the order can never disagree.
  */
 
 interface FieldSpec {
@@ -38,7 +53,7 @@ const CONTACT_FIELDS: FieldSpec[] = [
 const ADDRESS_FIELDS: FieldSpec[] = [
   { name: "street", label: "Street", autoComplete: "address-line1", span: "full" },
   { name: "houseNumber", label: "House / apartment number", autoComplete: "address-line2", span: "half" },
-  { name: "postalCode", label: "Postal code", autoComplete: "postal-code", inputMode: "numeric", placeholder: "10969", span: "half" },
+  { name: "postalCode", label: "Postal code", autoComplete: "postal-code", inputMode: "numeric", placeholder: String(DELIVERY_AREA.minPostalCode), span: "half" },
   { name: "city", label: "City", autoComplete: "address-level2", span: "full" },
 ];
 
@@ -46,22 +61,131 @@ export function CustomerForm({
   fulfillmentType,
   errors,
   showErrors,
+  addressLookupEnabled = false,
 }: {
   fulfillmentType: FulfillmentType;
   errors: FieldErrors;
   showErrors: boolean;
+  /**
+   * Whether a lookup service is connected, decided on the server. False today,
+   * and while it is false the browser never calls the endpoint — a request that
+   * can only 501 is not worth making.
+   */
+  addressLookupEnabled?: boolean;
 }) {
   const draft = useOrderDraftStore((state) => state.draft);
   const setField = useOrderDraftStore((state) => state.setField);
   const setPostalCode = useCartStore((state) => state.setPostalCode);
 
+  /** Fields the customer has typed in, which autofill must never overwrite. */
+  const touched = useRef(new Set<AutofillField>());
+  /** The last code we asked about, so one lookup per code rather than per keystroke. */
+  const lookedUp = useRef("");
+
   const handleChange = (field: DraftField, value: string) => {
     setField(field, value);
     if (field === "postalCode") setPostalCode(value);
+    if (field === "street" || field === "city") touched.current.add(field);
   };
 
+  const postal = checkPostalCode(draft.postalCode);
+  const zone = postal.deliverable ? findZone(postal.normalized) : null;
+
+  /*
+   * Address autofill.
+   *
+   * Runs only for a complete, in-area code, and asks the server rather than a
+   * lookup service directly so no API key is ever shipped to the browser. With
+   * nothing configured the endpoint answers 501 and this quietly fills nothing
+   * in — the customer types their address as before. See
+   * `lib/fulfillment/address-lookup.ts` for connecting a real service.
+   */
+  useEffect(() => {
+    if (!addressLookupEnabled) return;
+    if (fulfillmentType !== "delivery" || !postal.deliverable) return;
+    if (lookedUp.current === postal.normalized) return;
+    lookedUp.current = postal.normalized;
+
+    let cancelled = false;
+
+    void (async () => {
+      let suggestion: AddressSuggestion | null = null;
+      try {
+        const response = await fetch(
+          `/api/address-lookup?postalCode=${encodeURIComponent(postal.normalized)}`,
+        );
+        if (response.ok) {
+          const body = (await response.json()) as {
+            ok: boolean;
+            suggestion?: AddressSuggestion | null;
+          };
+          suggestion = body.ok ? (body.suggestion ?? null) : null;
+        }
+      } catch {
+        // A lookup that fails is not an error the customer needs to hear about.
+      }
+
+      if (cancelled || !suggestion) return;
+
+      // Read the draft at apply time, not from the closure: the customer has
+      // very likely typed something while the request was in flight.
+      const current = useOrderDraftStore.getState().draft;
+      for (const [field, value] of Object.entries(
+        applyAutofill(current, suggestion, touched.current),
+      )) {
+        setField(field as DraftField, value);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addressLookupEnabled, fulfillmentType, postal.deliverable, postal.normalized, setField]);
+
+  /*
+   * What sits under the postal-code field.
+   *
+   * Before the customer tries to continue, only a settled verdict is worth
+   * showing: "8" is not a wrong postal code, it is an unfinished one. After a
+   * failed attempt the submitted error wins, because it also covers the empty
+   * field, which live feedback stays quiet about.
+   */
+  const postalMessage = (showErrors ? errors.postalCode : null) ?? postal.message;
+  const postalConfirmed = !postalMessage && postal.deliverable;
+
+  const postalFeedback: ReactNode = postalConfirmed ? (
+    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-herb">
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0"
+      >
+        <path d="m4 10.5 4 4 8-9" />
+      </svg>
+      <span>
+        We deliver here
+        {zone ? ` · ${formatMoney(zone.deliveryFee)}, about ${zone.estimatedMinutes} min` : ""}
+      </span>
+    </p>
+  ) : null;
+
   const renderField = (spec: FieldSpec) => {
-    const error = showErrors ? errors[spec.name] : undefined;
+    /*
+     * The postal code answers live, because a customer we do not deliver to
+     * should find out while their cursor is still in the field — not after
+     * filling in the rest of the form and pressing continue.
+     */
+    const error =
+      spec.name === "postalCode"
+        ? (postalMessage ?? undefined)
+        : showErrors
+          ? errors[spec.name]
+          : undefined;
     const errorId = `${spec.name}-error`;
 
     return (
@@ -89,10 +213,11 @@ export function CustomerForm({
           }`}
         />
         {error && (
-          <p id={errorId} className="mt-1.5 text-sm text-danger">
+          <p id={errorId} role="alert" className="mt-1.5 text-sm text-danger">
             {error}
           </p>
         )}
+        {spec.name === "postalCode" && postalFeedback}
       </div>
     );
   };

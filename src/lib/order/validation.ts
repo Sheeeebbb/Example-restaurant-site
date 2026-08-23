@@ -1,5 +1,5 @@
 import type { Address, CustomerDetails, FulfillmentType, TimingMode } from "../types";
-import { findZone, normalizePostalCode } from "../fulfillment/delivery";
+import { normalizePostalCode, postalCodeError } from "../fulfillment/postal-code";
 import { isAcceptingOrdersAt, isSlotStillValid } from "../fulfillment/scheduling";
 import type { DeliveryZone } from "../types";
 import { RESTAURANT } from "../config/restaurant";
@@ -124,14 +124,14 @@ export function validateOrderDraft(
     }
     if (!trimmed("city")) errors.city = "Please enter your city.";
 
-    const postalCode = normalizePostalCode(draft.postalCode);
-    if (!postalCode) {
-      errors.postalCode = "Please enter your postal code.";
-    } else if (postalCode.length < 5) {
-      errors.postalCode = "Postal codes here are five digits.";
-    } else if (!findZone(postalCode)) {
-      errors.postalCode = "Sorry — we don't deliver to this postal code yet.";
-    }
+    /*
+     * Empty, half-typed, malformed and out-of-area all resolve here, in the
+     * module that owns the delivery boundary — so this runs the same rule the
+     * address form shows live and the server re-runs before accepting the
+     * order. A delivery order cannot be placed while this returns a message.
+     */
+    const postalProblem = postalCodeError(draft.postalCode);
+    if (postalProblem) errors.postalCode = postalProblem;
   }
 
   return errors;

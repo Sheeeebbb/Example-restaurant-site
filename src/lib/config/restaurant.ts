@@ -117,33 +117,43 @@ export const RESTAURANT = {
 } as const;
 
 /**
+ * How far the vans go.
+ *
+ * These four numbers are the delivery boundary for the whole application. Every
+ * check — the cart, the address form, the server that accepts the order — reads
+ * them through `lib/fulfillment/postal-code.ts` rather than repeating a range
+ * of its own, so widening the area is an edit here and nowhere else.
+ *
+ * `digits` is the postal-code length in this market. It is what makes "893" an
+ * unfinished code rather than a rejected one, and what stops a longer code
+ * being quietly truncated into a deliverable one.
+ */
+export const DELIVERY_AREA = {
+  minPostalCode: 8930,
+  maxPostalCode: 8940,
+  digits: 4,
+} as const;
+
+/**
  * Delivery coverage. A postal code outside every zone cannot be delivered to,
  * which the address step surfaces before the customer fills anything else in.
+ *
+ * Zones carry the fee, the minimum order and the travel time, so several of
+ * them can price a city in rings. Today there is one, covering the whole
+ * delivery area — the range above IS the zone — but the shape is unchanged, so
+ * splitting it back into rings later means adding rows here and nothing else.
  */
 export const DELIVERY_ZONES: DeliveryZone[] = [
   {
-    id: "zone-core",
-    name: "Kreuzberg & Mitte",
-    postalCodes: ["10969", "10997", "10999", "10117"],
-    deliveryFee: 199,
-    minimumOrder: 1000,
-    estimatedMinutes: 20,
-  },
-  {
-    id: "zone-inner",
-    name: "Neukölln, Friedrichshain & Prenzlauer Berg",
-    postalCodes: ["12043", "12045", "10245", "10247", "10405", "10437"],
+    id: "zone-local",
+    name: `${DELIVERY_AREA.minPostalCode} – ${DELIVERY_AREA.maxPostalCode}`,
+    from: DELIVERY_AREA.minPostalCode,
+    to: DELIVERY_AREA.maxPostalCode,
     deliveryFee: 299,
-    minimumOrder: 1500,
+    /** Matches the smallest minimum the old ring of zones used, so no existing
+        basket that could be delivered before now falls under it. */
+    minimumOrder: 1000,
     estimatedMinutes: 30,
-  },
-  {
-    id: "zone-outer",
-    name: "Schöneberg, Wedding & Treptow",
-    postalCodes: ["10827", "10829", "13353", "13355", "12435"],
-    deliveryFee: 449,
-    minimumOrder: 2000,
-    estimatedMinutes: 45,
   },
 ];
 

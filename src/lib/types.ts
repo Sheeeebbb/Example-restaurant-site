@@ -160,7 +160,9 @@ export interface Address {
 export interface DeliveryZone {
   id: string;
   name: string;
-  postalCodes: string[];
+  /** Inclusive numeric bounds of the postal codes this zone covers. */
+  from: number;
+  to: number;
   deliveryFee: Cents;
   /** Orders below this subtotal cannot be delivered to this zone. */
   minimumOrder: Cents;
