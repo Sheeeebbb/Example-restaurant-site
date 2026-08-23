@@ -9,8 +9,8 @@ import { useCartStore } from "@/lib/cart/store";
  * Cart entry point with an item count.
  *
  * Below `sm` the word "Cart" is dropped and only the trolley glyph and the
- * count remain, so the logo, cart, and "Order Now" all fit on one row at 360px
- * instead of pushing the sticky header to three rows.
+ * count remain, so the logo and the cart sit comfortably on one row at 360px
+ * rather than crowding each other.
  *
  * Nothing is lost to assistive tech: the icon and badge are `aria-hidden`, and
  * the link's accessible name always spells out "Cart, 2 items" in full. A live

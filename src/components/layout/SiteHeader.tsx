@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
-import { ButtonLink } from "@/components/ui/Button";
 import { RESTAURANT } from "@/lib/config/restaurant";
 
 const NAV_LINKS = [
@@ -33,9 +32,9 @@ export function SiteHeader() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 sm:gap-x-4 lg:h-18 lg:flex-nowrap lg:py-0">
           {/*
             `aria-label` fixes the accessible name to the restaurant's name, so
-            the wordmark can drop below 360px — where logo, cart and CTA would
-            otherwise overflow onto a third row — without the link ever
-            announcing as just "UT".
+            the wordmark can drop below 360px, where the logo and cart would
+            otherwise crowd each other, without the link ever announcing as
+            just "UT".
           */}
           <Link
             href="/"
@@ -77,19 +76,15 @@ export function SiteHeader() {
             </ul>
           </nav>
 
+          {/*
+            The cart is the only action here. An "Order Now" button used to sit
+            beside it, but it went to /menu — the same place as the Menu link two
+            inches to its left — so it dressed a navigation item up as a call to
+            action and took the header to three rows at 360px for nothing.
+            Ordering starts from the menu, and the menu has its own nav item.
+          */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:order-3">
             <CartButton />
-            {/*
-              "Order" below `sm`, "Order Now" above. Two nodes rather than one,
-              because CSS cannot swap text content — but only ever one is in the
-              accessibility tree, since `display:none` removes the other.
-              Without this the logo and actions overflow 360px and the sticky
-              header spills onto a third row.
-            */}
-            <ButtonLink href="/menu" size="md" className="px-3 sm:px-4">
-              <span className="sm:hidden">Order</span>
-              <span className="hidden sm:inline">Order Now</span>
-            </ButtonLink>
           </div>
         </div>
       </Container>
