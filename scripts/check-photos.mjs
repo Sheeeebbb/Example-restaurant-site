@@ -20,6 +20,11 @@ const entries = [...source.matchAll(/brief\("([^"]+)",\s*"([^"]+)"/g)].map(
   ([, slug, file]) => ({ slug, file }),
 );
 
+// The homepage hero is food photography too, and it is the largest image on the
+// site — leaving it out of the coverage report hides the most visible gap.
+const hero = source.match(/HERO_BRIEF[^}]*?file:\s*"([^"]+)"/s);
+if (hero) entries.push({ slug: "__hero (homepage)", file: hero[1] });
+
 if (entries.length === 0) {
   console.error("No photo briefs found — has photography.ts changed shape?");
   process.exit(1);
@@ -37,7 +42,7 @@ for (const entry of entries) {
   }
 }
 
-console.log(`Photography coverage: ${present.length}/${entries.length} dishes\n`);
+console.log(`Photography coverage: ${present.length}/${entries.length} images\n`);
 
 if (present.length) {
   console.log("Present:");

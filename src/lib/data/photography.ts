@@ -85,6 +85,204 @@ export interface PhotoBrief {
 
 /* ── Briefs ───────────────────────────────────────────────────────────────── */
 
+/**
+ * Where the current photograph for each dish came from.
+ *
+ * One block, one entry per file, so replacing the temporary stock photography
+ * with the restaurant's own is a single edit here plus a new file in
+ * `public/menu/` — no hunting through the briefs below.
+ *
+ * A slug missing from this map has no photograph yet, and `credit` stays null.
+ */
+const CREDITS: Record<string, PhotoCredit> = {
+  "urban-classic": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5970025/cheeseburger-fries-ketchup",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "smoky-bbq-bacon": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5968248/burger-bun",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "double-smash-deluxe": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5923478/free-burger-image-public-domain-food-cc0-photo",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "crispy-chicken-burger": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/3304030/free-photo-image-sandwiches-olive-fried-fries",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "truffle-mushroom-swiss": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=156085289",
+    photographer: "JIP",
+    licence: "CC BY-SA 4.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "garden-burger": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/11524474/photo-image-burger-public-domain-tomatoes",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "slow-braised-beef-dip": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/448380/free-photo-image-sandwich-burger-burger-restaurant",
+    photographer: "Jakub Kapusnak",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "grilled-chicken-club": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5926616/photo-image-public-domain-food-free",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "halloumi-roasted-pepper": {
+    source: "StockSnap.io",
+    url: "https://stocksnap.io/photo/bread-sandwich-J2S35LH7Z1",
+    photographer: "Freestocks.org",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "buttermilk-chicken-wrap": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=130489661",
+    photographer: "Andy Li",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "chicken-caesar": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5969607/chicken-salad",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "superfood-quinoa-bowl": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5921341/photo-image-flower-public-domain-plant",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "burrata-heirloom-tomato": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5906980/photo-image-public-domain-food-free",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "skin-on-fries": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5901512/free-french-fries-image-public-domain-cc0-photo",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "truffle-parmesan-fries": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5925861/photo-image-public-domain-food-free",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "sweet-potato-fries": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/448046/free-photo-image-sweet-potato-appetite-cc0",
+    photographer: "Jakub Kapusnak",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "buttermilk-slaw": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=5908746",
+    photographer: "BrokenSphere",
+    licence: "CC BY-SA 3.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "crispy-onion-rings": {
+    source: "WordPress Photo Directory",
+    url: "https://wordpress.org/photos/photo/35369ce104/",
+    photographer: "Mohammed Kateregga",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "salted-caramel-brownie": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5903810/photo-image-background-public-domain-food",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "new-york-cheesecake": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5924639/photo-image-public-domain-illustration-fruit",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "vanilla-soft-serve": {
+    source: "Wikimedia Commons",
+    url: "https://commons.wikimedia.org/w/index.php?curid=130153111",
+    photographer: "Marius Vassnes",
+    licence: "CC BY-SA 4.0",
+    attributionRequired: true,
+    addedOn: "2026-08-22",
+  },
+  "craft-lemonade": {
+    source: "StockSnap.io",
+    url: "https://stocksnap.io/photo/summer-cocktail-HGO20PXZVV",
+    photographer: "Tim Sullivan",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "cold-brew-coffee": {
+    source: "Rawpixel",
+    url: "https://www.rawpixel.com/image/5974765/cold-coffee-americano-rocks",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "local-craft-beer": {
+    source: "WordPress Photo Directory",
+    url: "https://wordpress.org/photos/photo/654663252b/",
+    photographer: "Nilo Velez",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+  "spring-water": {
+    source: "WordPress Photo Directory",
+    url: "https://wordpress.org/photos/photo/5116795c83/",
+    photographer: "Yam B Chhetri",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
+};
+
 const brief = (
   slug: string,
   file: string,
@@ -92,7 +290,15 @@ const brief = (
   composition: Composition,
   mustShow: string[],
   mustNotShow: string[] = [],
-): PhotoBrief => ({ slug, file, subject, composition, mustShow, mustNotShow, credit: null });
+): PhotoBrief => ({
+  slug,
+  file,
+  subject,
+  composition,
+  mustShow,
+  mustNotShow,
+  credit: CREDITS[slug] ?? null,
+});
 
 /**
  * Burgers and sandwiches are shot at three-quarter so the build reads as layers.
@@ -215,7 +421,14 @@ export const HERO_BRIEF: PhotoBrief = {
   composition: "three-quarter",
   mustShow: ["a burger from the menu", "skin-on fries"],
   mustNotShow: ["dishes not on the menu", "branded packaging"],
-  credit: null,
+  credit: {
+    source: "WordPress Photo Directory",
+    url: "https://wordpress.org/photos/photo/858699139d/",
+    photographer: "Manjil Aryal",
+    licence: "CC0 1.0",
+    attributionRequired: false,
+    addedOn: "2026-08-22",
+  },
 };
 
 /* ── Lookups ──────────────────────────────────────────────────────────────── */
@@ -237,6 +450,21 @@ export function photoCredit(slug: string): PhotoCredit | null {
   const entry = BY_SLUG.get(slug);
   if (!entry?.credit) return null;
   return entry.credit.attributionRequired ? entry.credit : null;
+}
+
+/**
+ * Every photograph whose licence obliges us to name the photographer.
+ *
+ * Most of the set is CC0 and needs nothing, but a handful are CC BY-SA, and
+ * those have to be credited wherever they are shown — not only on the dish page
+ * that happens to render `photoCredit()`. The About page lists these so the
+ * obligation is met site-wide, and this function is the single source for that
+ * list so a swapped photograph cannot leave a stale credit behind.
+ */
+export function attributedPhotos(): { slug: string; credit: PhotoCredit }[] {
+  return [...PHOTO_BRIEFS, HERO_BRIEF]
+    .filter((entry) => entry.credit?.attributionRequired)
+    .map((entry) => ({ slug: entry.slug, credit: entry.credit! }));
 }
 
 /** Dishes still waiting on a photograph. Drives `npm run photos:check`. */

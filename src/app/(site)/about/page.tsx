@@ -3,6 +3,8 @@ import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import { openingHoursSummary } from "@/lib/fulfillment/scheduling";
+import { attributedPhotos } from "@/lib/data/photography";
+import { MENU_ITEMS } from "@/lib/data/menu";
 
 export const metadata: Metadata = {
   title: "About",
@@ -11,6 +13,13 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   const hours = openingHoursSummary();
+  /*
+   * Most of the food photography is CC0 and carries no obligation. The few
+   * share-alike frames must be credited wherever they appear, so they are
+   * listed here rather than only on the dish page that renders them.
+   */
+  const dishName = new Map(MENU_ITEMS.map((item) => [item.slug, item.name]));
+  const photoCredits = attributedPhotos();
 
   return (
     <Container className="py-16 sm:py-20">
@@ -91,6 +100,44 @@ export default function AboutPage() {
           </p>
         </section>
       </div>
+
+      {photoCredits.length > 0 && (
+        <section
+          aria-labelledby="photography-heading"
+          className="mt-8 rounded-card border border-line bg-surface p-6"
+        >
+          <h2 id="photography-heading" className="font-display text-xl font-semibold text-ink">
+            Photography
+          </h2>
+          <p className="mt-4 text-sm leading-relaxed text-ink-muted">
+            Our own photography is on its way. Until then some dishes are shown
+            with licensed stock photographs, and these ones ask to be credited:
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-ink-muted">
+            {photoCredits.map(({ slug, credit }) => (
+              <li key={slug}>
+                <span className="text-ink">
+                  {dishName.get(slug) ?? "Homepage"}
+                </span>{" "}
+                &mdash;{" "}
+                {credit.url ? (
+                  <a
+                    href={credit.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline underline-offset-4 hover:text-ink"
+                  >
+                    {credit.photographer ?? credit.source}
+                  </a>
+                ) : (
+                  (credit.photographer ?? credit.source)
+                )}
+                , {credit.source} &middot; {credit.licence}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mt-12">
         <ButtonLink href="/menu" size="lg">

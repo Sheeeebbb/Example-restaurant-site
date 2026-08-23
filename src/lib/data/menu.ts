@@ -571,7 +571,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Spring Water",
     description: "Still or sparkling, chilled.",
     basePrice: 350,
-    image: { src: "/menu/spring-water.jpg", alt: "Bottle of chilled spring water" },
+    image: { src: "/menu/spring-water.jpg", alt: "Two glasses of chilled spring water on a wooden table" },
     tags: ["vegan", "vegetarian", "gluten-free"],
     allergens: [],
     available: true,
