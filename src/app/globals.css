@@ -69,6 +69,13 @@
   */
   --header-height: 109px;
 
+  /*
+    Height of the menu's sticky category bar, which sits directly under the
+    header. Section headings offset by header + this, so clicking "Desserts"
+    lands with the heading below both bars rather than hidden under them.
+  */
+  --menu-nav-height: 65px;
+
   /* --- Focus --- */
   --focus-ring: var(--ember);
 
@@ -235,4 +242,33 @@
     }
   }
 
+  /*
+    Cart feedback. Both are deliberately small and short: the point is to be
+    noticed in peripheral vision while the customer is already looking at the
+    button they pressed, not to hold up the next order. Applied via
+    `motion-safe:` at the call site, and the reduced-motion rule above collapses
+    them to nothing regardless.
+  */
+  @keyframes cart-bump {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(1.28);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes added-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.86);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }

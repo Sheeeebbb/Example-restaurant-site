@@ -63,7 +63,7 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
               <li aria-hidden="true">/</li>
               <li>
                 <Link
-                  href={`/menu?category=${category.slug}`}
+                  href={`/menu#cat-${category.slug}`}
                   className="underline-offset-4 hover:text-ink hover:underline"
                 >
                   {category.name}
