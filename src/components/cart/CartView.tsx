@@ -151,9 +151,24 @@ export function CartView({
           </Link>
         </p>
 
+        {/*
+          `min-w-0` on both columns is load-bearing, not tidying.
+
+          A grid item defaults to `min-width: auto`, which means it refuses to
+          shrink below the intrinsic width of its content. An <input> carries an
+          intrinsic width from its `size` attribute (20 characters) even when it
+          is styled `w-full`, so the promo field held the summary column at
+          367px — and on a 320px screen that pushed the whole page 63px wider
+          than the viewport and carried the "Apply" button's centre off the
+          right edge, where a finger cannot reach it.
+
+          Fixing it at the column, rather than at the field, means anything else
+          placed in either column can shrink too. Above `lg` there is room to
+          spare, so nothing about the layout changes there.
+        */}
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:gap-14">
           {/* ── Left: lines and order configuration ─────────────────────── */}
-          <div>
+          <div className="min-w-0">
             <section aria-labelledby="items-heading">
               <h2 id="items-heading" className="sr-only">
                 Items in your cart
@@ -200,7 +215,7 @@ export function CartView({
           </div>
 
           {/* ── Right: money ─────────────────────────────────────────────── */}
-          <aside aria-labelledby="summary-heading" className="lg:sticky lg:top-[calc(var(--header-height)+2rem)] lg:self-start">
+          <aside aria-labelledby="summary-heading" className="min-w-0 lg:sticky lg:top-[calc(var(--header-height)+2rem)] lg:self-start">
             <div className="rounded-card border border-line bg-surface p-6">
               <h2
                 id="summary-heading"

@@ -75,13 +75,20 @@ export function SiteFooter() {
           </div>
 
           <div>
+            {/*
+              Footer links are 36px tall rather than the height of their text.
+              As bare text they were 17px in a 25px rhythm — legible, but a
+              target a thumb misses, and below the 24px WCAG 2.5.8 minimum.
+              36px is the size the social links above already use, so the
+              footer gained a consistent touch target rather than a new one.
+            */}
             <h2 className="text-sm font-semibold text-ink">Explore</h2>
-            <ul className="mt-3 space-y-2 text-sm">
+            <ul className="mt-3 text-sm">
               {EXPLORE_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+                    className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   >
                     {link.label}
                   </Link>
@@ -99,10 +106,10 @@ export function SiteFooter() {
 
           <div>
             <h2 className="text-sm font-semibold text-ink">Get in touch</h2>
-            <ul className="mt-3 space-y-2 text-sm">
+            <ul className="mt-3 text-sm">
               <li>
                 <a
-                  className="text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+                  className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   href={telHref}
                 >
                   {RESTAURANT.contact.phone}
@@ -110,7 +117,7 @@ export function SiteFooter() {
               </li>
               <li>
                 <a
-                  className="text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+                  className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   href={`mailto:${RESTAURANT.contact.email}`}
                 >
                   {RESTAURANT.contact.email}
@@ -119,12 +126,12 @@ export function SiteFooter() {
             </ul>
 
             <h2 className="mt-6 text-sm font-semibold text-ink">Legal</h2>
-            <ul className="mt-3 space-y-2 text-sm">
+            <ul className="mt-3 text-sm">
               {LEGAL_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+                    className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   >
                     {link.label}
                   </Link>

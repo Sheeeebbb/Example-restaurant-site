@@ -250,8 +250,15 @@ export function ProductCustomizer({
         <>
           <div className="mt-6 hidden sm:block">{actionButton}</div>
 
-          {/* Mobile: pinned above the fold-line while the page scrolls past. */}
-          <div className="sticky bottom-0 -mx-4 mt-8 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur-md sm:hidden">
+          {/*
+            Mobile: pinned above the fold-line while the page scrolls past.
+
+            The bottom padding clears the iOS home indicator, the same way the
+            product panel's footer does. Without it the primary action on this
+            page sits under the gesture bar on every recent iPhone — the button
+            is drawn, and the bottom of it is not reliably tappable.
+          */}
+          <div className="sticky bottom-0 -mx-4 mt-8 border-t border-line bg-paper/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
             {actionButton}
           </div>
         </>

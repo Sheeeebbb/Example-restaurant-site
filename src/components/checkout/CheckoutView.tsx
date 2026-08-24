@@ -177,8 +177,15 @@ export function CheckoutView() {
           </Link>
         </p>
 
+        {/*
+          `min-w-0` for the same reason as the cart's columns: a grid item
+          will not shrink below its content's intrinsic width, and the card
+          and address fields in this column carry one. Without it a 320px
+          screen scrolls sideways and the controls nearest the right edge
+          drift out of reach.
+        */}
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:gap-14">
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <EditableSection
               title="Your details"
               open={openSection === "details"}
@@ -245,7 +252,7 @@ export function CheckoutView() {
           </div>
 
           {/* ── Summary and submit ───────────────────────────────────────── */}
-          <aside className="lg:sticky lg:top-[calc(var(--header-height)+2rem)] lg:self-start">
+          <aside className="min-w-0 lg:sticky lg:top-[calc(var(--header-height)+2rem)] lg:self-start">
             <div className="rounded-card border border-line bg-surface p-6">
               <h2 className="font-display text-xl font-semibold text-ink">
                 Order summary
