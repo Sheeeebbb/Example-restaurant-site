@@ -100,7 +100,7 @@ export async function SiteHeader() {
           */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:order-3">
             <CartMenu
-              photoMap={resolveMenuPhotos()}
+              photoMap={resolveMenuPhotos(items)}
               categoryByItemId={categoryByItemId}
             />
           </div>

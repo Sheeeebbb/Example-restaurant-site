@@ -289,3 +289,108 @@ describe("mock staff auth", () => {
     expect(isValidSession(undefined)).toBe(false);
   });
 });
+
+/**
+ * The dish photograph.
+ *
+ * One field, `item.image`, read by the menu card, the product panel, the cart
+ * line and the kitchen ticket alike. These cover what has to be true of it when
+ * staff change a dish — above all that an edit which says nothing about the
+ * photograph leaves the photograph alone.
+ */
+describe("menu item photographs", () => {
+  beforeEach(() => resetStore());
+
+  const base = {
+    name: "Test Dish",
+    description: "For testing.",
+    categoryId: "cat-burgers",
+    basePrice: 1000,
+    available: true,
+    featured: false,
+    tags: [],
+    allergens: [],
+    kitchenMinutes: 5,
+  } satisfies MenuItemInput;
+
+  it("saves a new dish with the photograph that was uploaded for it", async () => {
+    const result = await createMenuItem({
+      ...base,
+      imageSrc: "/api/menu-image/test-abc.jpg",
+      imageAlt: "A test dish",
+    });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.item.image).toEqual({
+      src: "/api/menu-image/test-abc.jpg",
+      alt: "A test dish",
+    });
+  });
+
+  it("lets a new dish exist without one", async () => {
+    const result = await createMenuItem(base);
+    if (!result.ok) throw new Error(result.error);
+    // A slug-shaped path that resolves to nothing: the card shows its fallback.
+    expect(result.item.image.src).toBe("/menu/test-dish.jpg");
+    expect(result.item.image.alt).toBe("Test Dish");
+  });
+
+  it("replaces the photograph when an edit carries a new one", async () => {
+    const created = await createMenuItem(base);
+    if (!created.ok) throw new Error(created.error);
+
+    const updated = await updateMenuItem(created.item.id, {
+      ...base,
+      imageSrc: "/api/menu-image/new-photo.jpg",
+    });
+    if (!updated.ok) throw new Error(updated.error);
+    expect(updated.item.image.src).toBe("/api/menu-image/new-photo.jpg");
+  });
+
+  it("keeps the photograph when an edit says nothing about it", async () => {
+    const created = await createMenuItem({
+      ...base,
+      imageSrc: "/api/menu-image/original.jpg",
+    });
+    if (!created.ok) throw new Error(created.error);
+
+    // This is what cancelling an image change sends: everything else, no image.
+    const updated = await updateMenuItem(created.item.id, {
+      ...base,
+      basePrice: 1500,
+    });
+    if (!updated.ok) throw new Error(updated.error);
+    expect(updated.item.image.src).toBe("/api/menu-image/original.jpg");
+    expect(updated.item.basePrice).toBe(1500);
+  });
+
+  it("keeps the shipped photograph of an existing dish through an ordinary edit", async () => {
+    const [existing] = await getMenuItems({ category: "burgers" });
+    const before = existing.image.src;
+
+    const updated = await updateMenuItem(existing.id, {
+      name: existing.name,
+      description: existing.description,
+      categoryId: existing.categoryId,
+      basePrice: existing.basePrice + 100,
+      available: existing.available,
+      featured: existing.featured,
+      tags: existing.tags,
+      allergens: existing.allergens,
+      kitchenMinutes: existing.kitchenMinutes,
+    });
+    if (!updated.ok) throw new Error(updated.error);
+    expect(updated.item.image.src).toBe(before);
+  });
+
+  it("refuses an image address that is not a path this site serves", async () => {
+    for (const imageSrc of [
+      "https://evil.example/x.jpg",
+      "//evil.example/x.jpg",
+      "/menu/../../etc/passwd",
+      "javascript:alert(1)",
+    ]) {
+      const result = await createMenuItem({ ...base, imageSrc });
+      expect(result.ok, imageSrc).toBe(false);
+    }
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ImageField } from "./ImageField";
 import { parseMoney, formatMoney } from "@/lib/money";
 import type { Category, DietaryTag, MenuItem } from "@/lib/types";
 
@@ -49,6 +50,11 @@ export function MenuItemForm({
   const [featured, setFeatured] = useState(item?.featured ?? false);
   const [tags, setTags] = useState<DietaryTag[]>(item?.tags ?? []);
   const [allergens, setAllergens] = useState((item?.allergens ?? []).join(", "));
+  /*
+   * Null until staff upload one. The dish's existing photograph is never
+   * touched while this is null, which is what makes "cancel" mean cancel.
+   */
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -78,6 +84,9 @@ export function MenuItemForm({
         .map((entry) => entry.trim().toLowerCase())
         .filter(Boolean),
       kitchenMinutes: Number(kitchenMinutes) || 0,
+      // Sent only when there is a new one. Absent means "keep the photograph
+      // this dish already has" — see `updateMenuItem`.
+      ...(imageSrc ? { imageSrc, imageAlt: name.trim() } : {}),
     };
 
     const response = await fetch(
@@ -136,6 +145,19 @@ export function MenuItemForm({
             onChange={(e) => setDescription(e.target.value)}
             className="mt-2 w-full rounded-control border border-line bg-surface p-3 text-sm text-ink"
           />
+        </div>
+
+        <div className="sm:col-span-2">
+          <span className="text-sm font-medium text-ink">Photograph</span>
+          <div className="mt-2">
+            <ImageField
+              currentSrc={item?.image.src ?? null}
+              dishName={name}
+              uploadedSrc={imageSrc}
+              onUploaded={setImageSrc}
+              onCleared={() => setImageSrc(null)}
+            />
+          </div>
         </div>
 
         <div>

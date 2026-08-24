@@ -22,11 +22,13 @@ export default async function OrderPage({ params }: PageProps<"/order/[reference
     items.map((item) => [item.id, item.categoryId]),
   );
   // Photo resolution touches the filesystem, so it happens here and the map is
-  // passed down — the confirmation itself is a client component.
+  // passed down — the confirmation itself is a client component. Built from the
+  // LIVE menu: a dish whose photograph staff replaced has a different src now,
+  // and a map built from the seed data would have no entry for it.
   return (
     <OrderConfirmation
       reference={normalizeOrderReference(reference)}
-      photoMap={resolveMenuPhotos()}
+      photoMap={resolveMenuPhotos(items)}
       categoryByItemId={categoryByItemId}
     />
   );

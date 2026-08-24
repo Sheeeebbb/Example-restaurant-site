@@ -35,6 +35,14 @@ interface ServerStore {
   orders: Map<string, Order>;
   /** Seeded from the menu module, then mutated by staff. */
   menu: MenuItem[];
+  /**
+   * Dish photographs staff have uploaded, keyed by the id in their URL.
+   *
+   * Same lifetime as the menu edits they belong to: live immediately, gone on
+   * restart. The photographs shipped with the site are files in `public/menu/`
+   * and are not in here — see `lib/media/image-storage.ts`.
+   */
+  images: Map<string, { data: Uint8Array; contentType: string }>;
 }
 
 const STORE_KEY = Symbol.for("urban-table.server-store");
@@ -47,6 +55,7 @@ function createStore(): ServerStore {
     // A deep copy: the seed module is the factory default and must stay pristine
     // so a reset can restore it.
     menu: structuredClone(MENU_ITEMS),
+    images: new Map(),
   };
 }
 

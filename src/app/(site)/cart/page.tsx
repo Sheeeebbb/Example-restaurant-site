@@ -22,7 +22,7 @@ export default async function CartPage() {
 
   return (
     <CartView
-      photoMap={resolveMenuPhotos()}
+      photoMap={resolveMenuPhotos(items)}
       categoryByItemId={categoryByItemId}
       /* Read here, on the server, so the credential a real provider needs never
          has a route into the client bundle. */

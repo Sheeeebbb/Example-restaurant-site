@@ -278,10 +278,31 @@ src/
     │   ├── address-autofill.ts What a lookup may overwrite — never a typed field
     │   ├── address-lookup.ts   ← the seam for a real lookup service (none connected)
     │   └── scheduling.ts       Opening hours, lead times, ASAP vs scheduled slots
+    ├── media/
+    │   ├── image-validation.ts Type, size and "is it really an image" checks
+    │   └── image-storage.ts    ← the seam for an object store (memory today)
     └── payments/
         ├── types.ts            PaymentProvider interface
         └── mock.ts             Simulated processor
 ```
+
+### Dish photographs
+
+A dish has one photograph, `item.image`, and the menu card, product panel, cart
+line and kitchen ticket all read that same field. Staff can replace it from
+`/admin/menu`; the upload goes through `/api/admin/menu/image`, which re-checks
+the file's type, its size and its first bytes before storing anything.
+
+The photographs shipped with the site are files in `public/menu/`. Uploads are
+kept in the in-memory server store beside the menu edits they belong to, which
+means they are live for customers immediately and gone when the process
+restarts — the same lifetime as a dish created in the admin area.
+
+Production needs an object store (S3, R2, Vercel Blob, Supabase Storage,
+Cloudinary). Implement `ImageStorageProvider` in `lib/media/image-storage.ts`
+and return it when its credentials are present; the credential is read there,
+server-side, and nowhere else. Writing into `public/` at runtime is not the
+answer — that directory is read-only on most hosts and is baked at build time.
 
 `lib/cart/totals.ts` imports nothing from React or the browser, specifically so
 the same function can run in a Route Handler later. Two implementations of

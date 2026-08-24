@@ -9,10 +9,15 @@ import { CATEGORIES } from "../data/menu";
  * read path and has no business exposing writes. A real deployment would put
  * an authorisation check in front of everything here.
  *
- * Deliberately simple: no image upload, no option-group editor. Option groups
- * are composed in `data/option-groups.ts` and a new item starts with none, so
- * staff can create and price a dish without needing a form that can express
- * every customisation rule in the system.
+ * Deliberately simple: no option-group editor. Option groups are composed in
+ * `data/option-groups.ts` and a new item starts with none, so staff can create
+ * and price a dish without needing a form that can express every customisation
+ * rule in the system.
+ *
+ * A dish has ONE photograph — `item.image` — and it is the same field the menu
+ * card, the product panel, the cart line and the kitchen ticket all read. There
+ * is no second "admin image": changing it here changes it everywhere, which is
+ * the only behaviour that can stay correct.
  */
 
 export interface MenuItemInput {
@@ -26,6 +31,15 @@ export interface MenuItemInput {
   tags: MenuItem["tags"];
   allergens: string[];
   kitchenMinutes: number;
+  /**
+   * Where the dish's photograph lives, from `/api/admin/menu/image`.
+   *
+   * Optional on an edit, and that is load-bearing: leaving it out means "keep
+   * the photograph you already have", which is what cancelling an image change
+   * has to do. Only a value that is actually here replaces anything.
+   */
+  imageSrc?: string;
+  imageAlt?: string;
 }
 
 export type MenuAdminResult =
@@ -55,6 +69,22 @@ function uniqueSlug(base: string, excludeId?: string): string {
   return `${base}-${suffix}`;
 }
 
+/**
+ * A photograph must be a same-origin path this application serves.
+ *
+ * Uploads come back as `/api/menu-image/…` and the shipped photographs are
+ * `/menu/….jpg`; anything else — a remote URL, a `javascript:` string, a walk
+ * up the tree — is refused rather than written into the menu and rendered.
+ */
+function validImageSrc(src: string): boolean {
+  return (
+    src.startsWith("/") &&
+    !src.startsWith("//") &&
+    !src.includes("..") &&
+    src.length <= 300
+  );
+}
+
 function validate(input: MenuItemInput): { error: string; field?: string } | null {
   if (!input.name?.trim()) return { error: "Give the dish a name.", field: "name" };
   if (input.name.trim().length > 80) {
@@ -75,6 +105,9 @@ function validate(input: MenuItemInput): { error: string; field?: string } | nul
   if (!Number.isInteger(input.kitchenMinutes) || input.kitchenMinutes < 0) {
     return { error: "Prep time must be a whole number of minutes.", field: "kitchenMinutes" };
   }
+  if (input.imageSrc !== undefined && !validImageSrc(input.imageSrc)) {
+    return { error: "That image address can't be used.", field: "imageSrc" };
+  }
   return null;
 }
 
@@ -90,7 +123,13 @@ export async function createMenuItem(input: MenuItemInput): Promise<MenuAdminRes
     name: input.name.trim(),
     description: input.description.trim(),
     basePrice: input.basePrice,
-    image: { src: `/menu/${slug}.jpg`, alt: input.name.trim() },
+    image: {
+      // No photograph yet is a perfectly good state: the slug-shaped path is
+      // where a shipped photograph would live, it resolves to nothing, and the
+      // card renders its designed fallback tile until one exists.
+      src: input.imageSrc ?? `/menu/${slug}.jpg`,
+      alt: input.imageAlt?.trim() || input.name.trim(),
+    },
     tags: input.tags ?? [],
     allergens: input.allergens ?? [],
     available: input.available,
@@ -130,6 +169,15 @@ export async function updateMenuItem(
     tags: input.tags ?? [],
     allergens: input.allergens ?? [],
     kitchenMinutes: input.kitchenMinutes,
+    /*
+     * The photograph is only touched when the edit carried a new one. An edit
+     * that changes the price must not quietly drop the picture, and cancelling
+     * an image change sends no `imageSrc` at all — so "absent" has to mean
+     * "leave it alone", not "clear it".
+     */
+    image: input.imageSrc
+      ? { src: input.imageSrc, alt: input.imageAlt?.trim() || input.name.trim() }
+      : { ...existing.image, alt: input.imageAlt?.trim() || existing.image.alt },
   };
 
   menu[index] = updated;

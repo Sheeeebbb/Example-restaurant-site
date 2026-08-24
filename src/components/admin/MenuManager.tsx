@@ -16,13 +16,18 @@ import type { Category, MenuItem } from "@/lib/types";
  * Deleting asks for confirmation. It removes the dish from the customer menu
  * immediately and there is no undo, which is exactly the sort of action that
  * should not happen on a mis-tap during service.
+ *
+ * Each row shows the dish's photograph, so a menu with gaps in it is visible
+ * without opening twenty-six forms to find out.
  */
 export function MenuManager({
   initialItems,
   categories,
+  photoMap,
 }: {
   initialItems: MenuItem[];
   categories: Category[];
+  photoMap: Record<string, string | null>;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -31,6 +36,19 @@ export function MenuManager({
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * A dish added or re-photographed in this session is not in the map the
+   * server rendered. Its photograph is one staff just uploaded, which is served
+   * by the route handler, so it can be shown directly; anything else unknown is
+   * treated as absent rather than guessed at.
+   */
+  const thumbnailFor = (item: MenuItem): string | null =>
+    item.image.src in photoMap
+      ? photoMap[item.image.src]
+      : item.image.src.startsWith("/api/menu-image/")
+        ? item.image.src
+        : null;
 
   const categoryName = (id: string) =>
     categories.find((category) => category.id === id)?.name ?? "Uncategorised";
@@ -156,6 +174,27 @@ export function MenuManager({
                     item.available ? "" : "bg-surface-sunken"
                   }`}
                 >
+                  {/*
+                    A thumbnail, so staff can see at a glance which dishes still
+                    have no photograph. A plain <img> rather than next/image:
+                    an uploaded photograph is served by a route handler and a
+                    missing one must be allowed to simply fail to a blank tile.
+                  */}
+                  <div className="relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-control border border-line bg-surface-sunken">
+                    {thumbnailFor(item) ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={thumbnailFor(item) as string}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-center text-[0.625rem] leading-tight text-ink-subtle">
+                        No photo
+                      </span>
+                    )}
+                  </div>
+
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-medium text-ink">
                       {item.name}
