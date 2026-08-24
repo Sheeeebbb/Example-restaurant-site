@@ -25,10 +25,27 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "No such order." }, { status: 404 });
   }
 
+  const status = deriveStatus(order);
+
   return NextResponse.json({
     ok: true,
-    status: deriveStatus(order),
+    status,
     // True once staff have moved it by hand, so the page can stop simulating.
     setByStaff: order.history.some((event) => event.by === "staff"),
+    /*
+     * The cancellation, if there was one.
+     *
+     * This is the one piece of staff-written text that belongs to the customer:
+     * the reason exists to be shown to them, and the staff form says so before
+     * anyone types it. It is sent only on a cancelled order, and nothing else
+     * from the audit trail comes with it — no other note, no author, no
+     * timestamps beyond the cancellation's own.
+     */
+    ...(status === "cancelled"
+      ? {
+          cancellationReason: order.cancellationReason ?? null,
+          cancelledAt: order.cancelledAt ?? null,
+        }
+      : {}),
   });
 }

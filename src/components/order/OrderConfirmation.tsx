@@ -39,6 +39,18 @@ export function OrderConfirmation({
   const [now, setNow] = useState(() => new Date());
   /** A status the kitchen set by hand, which overrides the simulation. */
   const [staffStatus, setStaffStatus] = useState<OrderStatus | null>(null);
+  /*
+   * The reason, if the restaurant cancelled.
+   *
+   * It has to come from the server: the customer's own copy of this order was
+   * written when they placed it, hours before anyone decided to cancel it, so
+   * the browser cannot possibly know why. This is the only staff-written text
+   * the endpoint returns, and it is written for them to read.
+   */
+  const [cancellation, setCancellation] = useState<{
+    reason: string | null;
+    at: string | null;
+  } | null>(null);
 
   useEffect(() => {
     void useOrderStore.persist.rehydrate();
@@ -72,8 +84,17 @@ export function OrderConfirmation({
         const body = (await response.json()) as {
           status: OrderStatus;
           setByStaff: boolean;
+          cancellationReason?: string | null;
+          cancelledAt?: string | null;
         };
-        if (!cancelled && body.setByStaff) setStaffStatus(body.status);
+        if (cancelled) return;
+        if (body.setByStaff) setStaffStatus(body.status);
+        if (body.status === "cancelled") {
+          setCancellation({
+            reason: body.cancellationReason ?? null,
+            at: body.cancelledAt ?? null,
+          });
+        }
       } catch {
         // Offline or the server restarted: keep showing the simulated status
         // rather than blanking a page the customer is watching.
@@ -124,6 +145,7 @@ export function OrderConfirmation({
   }
 
   const status = staffStatus ?? deriveStatus(order, now);
+  const isCancelled = status === "cancelled";
   const isDelivery = order.fulfillment.type === "delivery";
   const readyAt = new Date(order.estimatedReadyAt);
 
@@ -146,63 +168,152 @@ export function OrderConfirmation({
   return (
     <Container className="py-10 sm:py-14">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <div className="rounded-card border border-herb bg-herb-soft p-6 sm:p-10">
-        <div className="flex items-start gap-4">
-          <span
-            aria-hidden="true"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-herb"
-          >
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-on-herb">
-              <path
-                d="M5 12.5l4.5 4.5L19 7.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-              Order Confirmed!
-            </h1>
-            <p className="mt-2 text-lg text-ink-muted">
-              Thanks {order.customer.name.split(" ")[0]} — we&rsquo;ve sent a
-              receipt to {order.customer.email}.
-            </p>
+      {isCancelled ? (
+        /*
+          A cancelled order gets its own head of the page rather than the
+          confirmation with a warning bolted on: the green tick and "Order
+          Confirmed!" are now untrue, and so is the estimated delivery time, so
+          none of it is drawn. Warning tones, not danger ones — the restaurant
+          has let this customer down and the page should read as an apology, not
+          an error screen.
+        */
+        <div className="rounded-card border border-warning bg-warning-soft p-6 sm:p-10">
+          <div className="flex items-start gap-4">
+            <span
+              aria-hidden="true"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-warning"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6 text-on-warning">
+                <path
+                  d="M7 7l10 10M17 7L7 17"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+                Order Cancelled
+              </h1>
+              <p className="mt-2 text-lg leading-relaxed text-ink-muted">
+                We&rsquo;re sorry — your order has been cancelled by the
+                restaurant.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <dl className="mt-8 grid gap-6 border-t border-herb/30 pt-6 sm:grid-cols-3">
-          <div>
-            <dt className="text-sm text-ink-muted">Order number</dt>
-            <dd className="mt-1 font-display text-2xl font-bold tracking-wide text-ink">
-              {order.reference}
-            </dd>
+          {/* The staff member's own words, quoted. Shown only when there are
+              some: an empty "Reason:" heading is worse than no heading. */}
+          {cancellation?.reason && (
+            <div className="mt-6 rounded-control border border-warning/40 bg-surface p-4">
+              <p className="text-sm font-semibold text-ink">Reason</p>
+              <p className="mt-1 leading-relaxed text-ink-muted">
+                {cancellation.reason}
+              </p>
+            </div>
+          )}
+
+          <dl className="mt-8 grid gap-6 border-t border-warning/30 pt-6 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm text-ink-muted">Order number</dt>
+              <dd className="mt-1 font-display text-2xl font-bold tracking-wide text-ink">
+                {order.reference}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-ink-muted">Cancelled</dt>
+              <dd className="mt-1 font-display text-2xl font-bold text-ink">
+                {cancellation?.at ? timeFormat.format(new Date(cancellation.at)) : "—"}
+              </dd>
+              <dd className="text-sm text-ink-muted">
+                {cancellation?.at ? dayFormat.format(new Date(cancellation.at)) : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-ink-muted">Anything charged</dt>
+              <dd className="mt-1 font-display text-2xl font-bold text-ink">
+                {formatMoney(order.totals.total)}
+              </dd>
+              <dd className="text-sm text-ink-muted">
+                {order.payment.provider === "mock"
+                  ? "Test payment — nothing was charged"
+                  : "Contact us and we'll put it right"}
+              </dd>
+            </div>
+          </dl>
+
+          <p className="mt-6 text-sm leading-relaxed text-ink-muted">
+            Any questions about this order, call us on{" "}
+            <a
+              className="font-medium text-ink underline underline-offset-4"
+              href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
+            >
+              {RESTAURANT.contact.phone}
+            </a>{" "}
+            and quote {order.reference}.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-card border border-herb bg-herb-soft p-6 sm:p-10">
+          <div className="flex items-start gap-4">
+            <span
+              aria-hidden="true"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-herb"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6 text-on-herb">
+                <path
+                  d="M5 12.5l4.5 4.5L19 7.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+                Order Confirmed!
+              </h1>
+              <p className="mt-2 text-lg text-ink-muted">
+                Thanks {order.customer.name.split(" ")[0]} — we&rsquo;ve sent a
+                receipt to {order.customer.email}.
+              </p>
+            </div>
           </div>
-          <div>
-            <dt className="text-sm text-ink-muted">
-              {isDelivery ? "Estimated delivery" : "Ready for pickup"}
-            </dt>
-            <dd className="mt-1 font-display text-2xl font-bold text-ink">
-              {timeFormat.format(readyAt)}
-            </dd>
-            <dd className="text-sm text-ink-muted">
-              {sameDay ? `about ${minutesAway} minutes away` : dayFormat.format(readyAt)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-sm text-ink-muted">Total paid</dt>
-            <dd className="mt-1 font-display text-2xl font-bold text-ink">
-              {formatMoney(order.totals.total)}
-            </dd>
-            <dd className="text-sm text-ink-muted">
-              {order.payment.provider === "mock" ? "Test payment — nothing charged" : ""}
-            </dd>
-          </div>
-        </dl>
-      </div>
+
+          <dl className="mt-8 grid gap-6 border-t border-herb/30 pt-6 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm text-ink-muted">Order number</dt>
+              <dd className="mt-1 font-display text-2xl font-bold tracking-wide text-ink">
+                {order.reference}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-ink-muted">
+                {isDelivery ? "Estimated delivery" : "Ready for pickup"}
+              </dt>
+              <dd className="mt-1 font-display text-2xl font-bold text-ink">
+                {timeFormat.format(readyAt)}
+              </dd>
+              <dd className="text-sm text-ink-muted">
+                {sameDay ? `about ${minutesAway} minutes away` : dayFormat.format(readyAt)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-ink-muted">Total paid</dt>
+              <dd className="mt-1 font-display text-2xl font-bold text-ink">
+                {formatMoney(order.totals.total)}
+              </dd>
+              <dd className="text-sm text-ink-muted">
+                {order.payment.provider === "mock" ? "Test payment — nothing charged" : ""}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-14">
         {/* ── Tracking ───────────────────────────────────────────────────── */}
@@ -217,14 +328,48 @@ export function OrderConfirmation({
             {statusLabel(status, order.fulfillment.type)}
           </p>
 
-          <div className="mt-6 rounded-card border border-line bg-surface p-6">
-            <OrderTimeline status={status} fulfillmentType={order.fulfillment.type} />
-          </div>
+          {isCancelled ? (
+            /*
+              No timeline. A cancelled order did not travel any of those
+              stages, and drawing a progress track with nothing lit — or worse,
+              with "Preparing" still glowing from before — is exactly the
+              contradiction the customer must never be shown.
+            */
+            <div className="mt-6 rounded-card border border-warning bg-warning-soft p-6">
+              <p className="font-display text-lg font-semibold text-ink">
+                This order isn&rsquo;t coming
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+                It was cancelled by the restaurant
+                {cancellation?.at ? ` at ${timeFormat.format(new Date(cancellation.at))}` : ""}
+                , so nothing is being prepared and nothing is on its way.
+              </p>
+              {/* The reason itself is at the top of the page, where the
+                  customer reads it first. Repeating it here would say the same
+                  sentence twice on one screen. */}
+              <Link
+                href="/menu"
+                className="mt-5 inline-flex min-h-11 items-center rounded-control bg-ember px-5 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
+              >
+                Order something else
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="mt-6 rounded-card border border-line bg-surface p-6">
+                <OrderTimeline
+                  status={status}
+                  fulfillmentType={order.fulfillment.type}
+                />
+              </div>
 
-          <p className="mt-4 text-xs leading-relaxed text-ink-subtle">
-            Status is simulated for this demonstration and advances on the
-            estimated timings above. A real kitchen would set it by hand.
-          </p>
+              <p className="mt-4 text-xs leading-relaxed text-ink-subtle">
+                Status is simulated for this demonstration and advances on the
+                estimated timings above, until the kitchen sets it by hand — from
+                then on you see exactly what they set.
+              </p>
+            </>
+          )}
         </section>
 
         {/* ── Order details ──────────────────────────────────────────────── */}

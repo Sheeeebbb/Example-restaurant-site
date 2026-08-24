@@ -50,6 +50,7 @@
   --on-danger: #ffffff;
   --warning: #a16207;
   --warning-soft: #fdf4e3;
+  --on-warning: #ffffff;
 
   /* --- Lines --- */
   --line: #e8ddd0;
@@ -130,6 +131,8 @@
     --on-danger: #1a1614;
     --warning: #e0b154;
     --warning-soft: #2a2114;
+    /* Warning lightens for dark ground, so a fill made from it needs dark ink. */
+    --on-warning: #1a1614;
 
     --line: #322b26;
     --line-strong: #473d36;
@@ -168,6 +171,7 @@
   --color-on-danger: var(--on-danger);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-on-warning: var(--on-warning);
 
   --color-poster: var(--poster);
   --color-poster-fg: var(--poster-fg);

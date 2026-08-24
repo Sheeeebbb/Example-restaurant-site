@@ -16,7 +16,8 @@ export interface DashboardStats {
   revenueToday: Cents;
   preparing: number;
   awaitingPickup: number;
-  outForDelivery: number;
+  /** Cooked, boxed, and waiting for someone to take it out. */
+  awaitingDriver: number;
   /** Average order value today, for the revenue card's subtitle. */
   averageOrderValue: Cents;
 }
@@ -42,14 +43,18 @@ export function calculateStats(
 
   let preparing = 0;
   let awaitingPickup = 0;
-  let outForDelivery = 0;
+  let awaitingDriver = 0;
 
+  // "Ready" splits by how the food leaves the building: a pickup order is
+  // waiting on the customer, a delivery order is waiting on a driver, and a
+  // kitchen chases those two very differently.
   for (const order of orders) {
     const status = deriveStatus(order, now);
     if (status === "preparing") preparing += 1;
-    else if (status === "ready" && order.fulfillment.type === "pickup") {
-      awaitingPickup += 1;
-    } else if (status === "outForDelivery") outForDelivery += 1;
+    else if (status === "ready") {
+      if (order.fulfillment.type === "pickup") awaitingPickup += 1;
+      else awaitingDriver += 1;
+    }
   }
 
   return {
@@ -57,7 +62,7 @@ export function calculateStats(
     revenueToday,
     preparing,
     awaitingPickup,
-    outForDelivery,
+    awaitingDriver,
     averageOrderValue:
       earning.length > 0 ? Math.round(revenueToday / earning.length) : 0,
   };

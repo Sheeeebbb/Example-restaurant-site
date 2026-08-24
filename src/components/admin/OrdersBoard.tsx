@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { OrderDetail } from "./OrderDetail";
 import { StatusBadge } from "./StatusBadge";
-import { deriveStatus, statusLabel } from "@/lib/order/status";
+import { deriveStatus, statusLabel, timelineFor } from "@/lib/order/status";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -27,10 +27,11 @@ type Filter = "active" | "all" | OrderStatus;
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "active", label: "Active" },
+  { value: "confirmed", label: "New" },
   { value: "preparing", label: "Preparing" },
   { value: "ready", label: "Ready" },
-  { value: "outForDelivery", label: "Out for delivery" },
   { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
 ];
 
@@ -85,27 +86,51 @@ export function OrdersBoard() {
     };
   }, [load]);
 
-  const updateStatus = async (reference: string, status: OrderStatus) => {
-    const response = await fetch(`/api/admin/orders/${reference}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-
-    if (!response.ok) {
-      setError("That status change didn't save.");
-      return;
+  /**
+   * Sends one status action and reports back in words.
+   *
+   * Returns the failure message rather than setting page-level state, so the
+   * detail panel can put it next to the button that was pressed — a refusal
+   * belongs where the attempt was made, not in a banner at the top of a screen
+   * the kitchen may have scrolled past.
+   *
+   * `from` rides along with every request: this board polls, so a button can be
+   * up to fifteen seconds out of date, and the server refuses an instruction
+   * that was about a situation which has since moved on. When it does refuse it
+   * hands back the order as it really stands, and that is what the board adopts
+   * — a stale screen corrects itself instead of arguing.
+   */
+  const act = async (
+    reference: string,
+    payload: { action: "advance" } | { action: "cancel"; reason: string },
+    from: OrderStatus,
+  ): Promise<string | null> => {
+    let body: { ok: boolean; order?: Order; error?: string };
+    try {
+      const response = await fetch(`/api/admin/orders/${reference}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, from }),
+      });
+      body = (await response.json()) as typeof body;
+    } catch {
+      return "Couldn't reach the order service. Check the connection and try again.";
     }
 
     mutations.current += 1;
-    const body = (await response.json()) as { order: Order };
-    setOrders((current) =>
-      current.map((order) =>
-        order.reference === body.order.reference ? body.order : order,
-      ),
-    );
+    if (body.order) {
+      const fresh = body.order;
+      setOrders((current) =>
+        current.map((order) => (order.reference === fresh.reference ? fresh : order)),
+      );
+    }
+
+    if (!body.ok) return body.error ?? "That status change didn't save.";
+
+    setError(null);
     // Keeps the dashboard's counters honest when staff navigate back to it.
     router.refresh();
+    return null;
   };
 
   const withStatus = orders.map((order) => ({
@@ -122,6 +147,12 @@ export function OrdersBoard() {
   });
 
   const selectedOrder = orders.find((order) => order.reference === selected) ?? null;
+  /*
+   * Derived once and handed to the panel, which also sends it back as `from`.
+   * Computing it separately in each place is how a screen ends up drawing a
+   * button for one status and submitting another.
+   */
+  const selectedStatus = selectedOrder ? deriveStatus(selectedOrder) : "confirmed";
 
   const select = (reference: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -238,8 +269,13 @@ export function OrdersBoard() {
           {selectedOrder ? (
             <OrderDetail
               order={selectedOrder}
-              status={deriveStatus(selectedOrder)}
-              onStatusChange={(status) => updateStatus(selectedOrder.reference, status)}
+              status={selectedStatus}
+              onAdvance={() =>
+                act(selectedOrder.reference, { action: "advance" }, selectedStatus)
+              }
+              onCancel={(reason) =>
+                act(selectedOrder.reference, { action: "cancel", reason }, selectedStatus)
+              }
               onClose={() => select(null)}
             />
           ) : (
@@ -256,8 +292,11 @@ export function OrdersBoard() {
 
       <p className="mt-8 text-xs leading-relaxed text-ink-subtle">
         Status set here replaces the simulated progress the customer sees on
-        their tracking page. {statusLabel("outForDelivery", "delivery")} is only
-        offered on delivery orders.
+        their tracking page. Orders move one step at a time and never backwards:{" "}
+        {timelineFor()
+          .map((stage) => statusLabel(stage, "delivery"))
+          .join(" → ")}
+        . Cancelling is separate, asks for a reason, and is final.
       </p>
     </div>
   );

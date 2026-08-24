@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { StatusBadge } from "./StatusBadge";
-import { statusLabel, timelineFor } from "@/lib/order/status";
+import { CancelOrderDialog } from "./CancelOrderDialog";
+import { statusLabel, statusDescription, timelineFor } from "@/lib/order/status";
+import { advanceAction, canCancel, isTerminalStatus } from "@/lib/order/transitions";
 import { formatMoney, formatDelta } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -9,25 +12,70 @@ import type { Order, OrderStatus } from "@/lib/types";
 /**
  * One order, in full, with the controls to move it along.
  *
- * The status buttons offer the stages this order can actually be in: the
- * timeline for its fulfilment type, so "Out for delivery" never appears on a
- * pickup order, plus Cancelled. Staff can jump to any of them rather than being
- * forced through in sequence — kitchens skip steps, and a UI that refuses to
- * believe that gets worked around instead of used.
+ * There is exactly one progression control, and it is whatever this order can
+ * do next — "Start preparing", then "Mark ready", then "Mark delivered". The
+ * earlier stages are not offered and disabled; they are not offered at all,
+ * because an order cannot go back to them and a greyed-out row of the past is
+ * just clutter on a kitchen screen. A strip above the button shows where the
+ * order stands in its journey, so "one button" never means "no context".
+ *
+ * Cancelling sits apart from that: a quieter, red-edged action beneath the
+ * progression, opening a confirmation that asks why. It is not the next step in
+ * anything — it ends the order — so it does not sit in the same row as the step
+ * that continues it.
+ *
+ * None of this is the rule. The rule is `lib/order/transitions.ts`, applied in
+ * the repository; this component asks the same machine what to draw, so the
+ * screen and the server can't drift apart.
  */
 export function OrderDetail({
   order,
   status,
-  onStatusChange,
+  onAdvance,
+  onCancel,
   onClose,
 }: {
   order: Order;
   status: OrderStatus;
-  onStatusChange: (status: OrderStatus) => void;
+  /** Resolves to an error message, or null when the move went through. */
+  onAdvance: () => Promise<string | null>;
+  onCancel: (reason: string) => Promise<string | null>;
   onClose: () => void;
 }) {
   const isDelivery = order.fulfillment.type === "delivery";
-  const choices: OrderStatus[] = [...timelineFor(order.fulfillment.type), "cancelled"];
+  const [confirming, setConfirming] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const next = advanceAction(status, order.fulfillment.type);
+  const finished = isTerminalStatus(status);
+  const cancelled = status === "cancelled";
+
+  /*
+   * The strip of stages above the button.
+   *
+   * A live order shows the whole journey, so the button below is visibly "the
+   * next one of four". A cancelled order shows only the stages it actually
+   * reached, because the rest never happened — trailing "Ready › Delivered"
+   * after a cancellation reads as though the food is still coming, which is
+   * precisely the contradiction this work exists to remove.
+   */
+  const allStages = timelineFor();
+  const stages = cancelled
+    ? allStages.filter((stage) =>
+        order.history.some((event) => event.status === stage),
+      )
+    : allStages;
+  // Everything shown on a cancelled order is behind it; otherwise, where it is.
+  const reached = cancelled ? stages.length : stages.indexOf(status);
+
+  const advance = async () => {
+    setAdvancing(true);
+    setActionError(null);
+    const failure = await onAdvance();
+    setAdvancing(false);
+    if (failure) setActionError(failure);
+  };
 
   const dateTime = new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
     weekday: "short",
@@ -62,40 +110,135 @@ export function OrderDetail({
         </button>
       </div>
 
-      {/* ── Status controls ────────────────────────────────────────────── */}
+      {/* ── Status and the one thing to do next ───────────────────────── */}
       <div className="border-b border-line p-5 sm:p-6">
-        <fieldset>
-          <legend className="text-sm font-semibold text-ink">Set status</legend>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {choices.map((choice) => {
-              const isCurrent = choice === status;
-              return (
-                <button
-                  key={choice}
-                  type="button"
-                  onClick={() => onStatusChange(choice)}
-                  aria-pressed={isCurrent}
-                  className={`min-h-11 rounded-control border px-3 text-sm font-medium transition-colors ${
-                    isCurrent
-                      ? "border-ember bg-ember text-on-ember"
-                      : choice === "cancelled"
-                        ? "border-line-strong bg-surface text-danger hover:bg-danger-soft"
-                        : "border-line-strong bg-surface text-ink hover:bg-surface-sunken"
+        <p className="text-sm font-semibold text-ink">Status</p>
+
+        {/*
+          Where the order is, at a glance. Passed stages read as done, the
+          current one is named in full, and anything ahead is dim — so the
+          single button below is obviously "the next one", not "the only one".
+        */}
+        <ol className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-2" aria-label="Progress">
+          {stages.map((stage, index) => {
+            const done = reached !== -1 && index < reached;
+            const isNow = stage === status;
+            return (
+              <li key={stage} className="flex items-center gap-1.5">
+                {index > 0 && (
+                  <span aria-hidden="true" className="text-ink-subtle">
+                    ›
+                  </span>
+                )}
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    isNow
+                      ? "bg-ember text-on-ember"
+                      : done
+                        ? "bg-herb-soft text-herb"
+                        : "bg-surface-sunken text-ink-subtle"
                   }`}
                 >
-                  {statusLabel(choice, order.fulfillment.type)}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-        <p role="status" className="mt-3 text-sm text-ink-muted">
-          Customer currently sees:{" "}
-          <span className="font-medium text-ink">
-            {statusLabel(status, order.fulfillment.type)}
-          </span>
+                  {statusLabel(stage, order.fulfillment.type)}
+                  {isNow && <span className="sr-only"> — current status</span>}
+                </span>
+              </li>
+            );
+          })}
+          {cancelled && (
+            <li className="flex items-center gap-1.5">
+              <span aria-hidden="true" className="text-ink-subtle">
+                ›
+              </span>
+              <span className="rounded-full bg-danger-soft px-2.5 py-1 text-xs font-semibold text-danger">
+                Cancelled
+                <span className="sr-only"> — current status</span>
+              </span>
+            </li>
+          )}
+        </ol>
+
+        <p className="mt-4 font-display text-lg font-semibold text-ink">
+          {statusLabel(status, order.fulfillment.type)}
         </p>
+        <p role="status" className="mt-0.5 text-sm text-ink-muted">
+          {finished
+            ? cancelled
+              ? "Cancelled. This order is closed and can't be reopened."
+              : "Complete. Nothing further to do."
+            : `The customer sees this now. ${statusDescription(status, order.fulfillment.type)}`}
+        </p>
+
+        {actionError && (
+          <p
+            role="alert"
+            className="mt-4 rounded-control bg-danger-soft p-3 text-sm font-medium text-danger"
+          >
+            {actionError}
+          </p>
+        )}
+
+        {next && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={advance}
+              disabled={advancing}
+              className="inline-flex min-h-12 items-center rounded-control bg-ember px-6 text-base font-semibold text-on-ember transition-colors hover:bg-ember-hover disabled:opacity-50"
+            >
+              {advancing ? "Saving…" : next.label}
+            </button>
+            <p className="mt-1.5 text-xs text-ink-subtle">
+              Moves this order to{" "}
+              {statusLabel(next.to, order.fulfillment.type).toLowerCase()}. One step
+              at a time, and there is no way back.
+            </p>
+          </div>
+        )}
+
+        {/*
+          Separated by a rule, not just by colour: cancelling is not the
+          quiet sibling of the button above, it is a different kind of act.
+        */}
+        {canCancel(status) && (
+          <div className="mt-5 border-t border-line pt-4">
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="inline-flex min-h-11 items-center rounded-control border border-danger px-4 text-sm font-semibold text-danger transition-colors hover:bg-danger-soft"
+            >
+              Cancel order
+            </button>
+            <p className="mt-1.5 text-xs text-ink-subtle">
+              Asks for a reason, which the customer is shown. Can&rsquo;t be undone.
+            </p>
+          </div>
+        )}
+
+        {cancelled && order.cancellationReason && (
+          <div className="mt-4 rounded-control border border-danger/40 bg-danger-soft p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-danger">
+              Reason given to the customer
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-ink">
+              {order.cancellationReason}
+            </p>
+          </div>
+        )}
       </div>
+
+      {confirming && (
+        <CancelOrderDialog
+          reference={order.reference}
+          statusLabel={statusLabel(status, order.fulfillment.type)}
+          onConfirm={async (reason) => {
+            const failure = await onCancel(reason);
+            if (!failure) setConfirming(false);
+            return failure;
+          }}
+          onClose={() => setConfirming(false)}
+        />
+      )}
 
       <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
         {/* ── Customer ─────────────────────────────────────────────────── */}

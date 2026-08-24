@@ -1,4 +1,5 @@
 import type { FulfillmentType, Order, OrderStatus } from "../types";
+import { ORDER_FLOW, nextStatus } from "./transitions";
 
 /**
  * Simulated order progress.
@@ -16,13 +17,13 @@ import type { FulfillmentType, Order, OrderStatus } from "../types";
 
 /**
  * Fractions of the order's total lead time at which each stage begins.
- * Delivery splits the tail: the food is ready, then it travels.
+ *
+ * The same fractions for delivery and pickup, because the stages are now the
+ * same for both — see `ORDER_FLOW` in `transitions.ts`.
  */
 const SCHEDULE = {
   preparing: 0.08,
   ready: 0.6,
-  /** Delivery only — the courier leaves once the food is ready. */
-  outForDelivery: 0.75,
 } as const;
 
 export function deriveStatus(
@@ -49,21 +50,25 @@ export function deriveStatus(
   if (!Number.isFinite(lead) || lead <= 0) return "completed";
 
   const progress = (now.getTime() - created) / lead;
-  const isDelivery = order.fulfillment.type === "delivery";
 
   if (progress >= 1) return "completed";
-  if (isDelivery && progress >= SCHEDULE.outForDelivery) return "outForDelivery";
   if (progress >= SCHEDULE.ready) return "ready";
   if (progress >= SCHEDULE.preparing) return "preparing";
   return "confirmed";
 }
 
-/** The stages an order of this kind passes through, in order. */
-export function timelineFor(fulfillmentType: FulfillmentType): OrderStatus[] {
-  const common: OrderStatus[] = ["confirmed", "preparing", "ready"];
-  return fulfillmentType === "delivery"
-    ? [...common, "outForDelivery", "completed"]
-    : [...common, "completed"];
+/**
+ * The stages an order passes through, in order.
+ *
+ * Read straight off the state machine, so the customer's tracker and the
+ * kitchen's buttons can never describe different journeys.
+ *
+ * Takes no fulfilment type, and that is the point: delivery and pickup follow
+ * the same four stages now. Only the wording of the last one differs — and
+ * naming it is `statusLabel`'s job, not this one's.
+ */
+export function timelineFor(): OrderStatus[] {
+  return [...ORDER_FLOW];
 }
 
 /**
@@ -85,6 +90,8 @@ export function statusLabel(
     case "ready":
       return isDelivery ? "Ready" : "Ready for pickup";
     case "outForDelivery":
+      // A retired stage. Only orders placed before delivery and pickup were
+      // brought onto one path can still be sitting in it.
       return "Out for delivery";
     case "completed":
       return isDelivery ? "Delivered" : "Collected";
@@ -118,10 +125,54 @@ export function statusDescription(
   }
 }
 
-/** How far through the timeline an order is, for progress indicators. */
-export function timelineIndex(
-  status: OrderStatus,
+/**
+ * How far through the timeline an order is, for progress indicators.
+ *
+ * −1 for a status that is not a stage — `cancelled`, or the retired
+ * `outForDelivery`. Callers must handle that rather than lighting stage zero:
+ * a cancelled order has not "reached order received", it has left the track.
+ */
+export function timelineIndex(status: OrderStatus): number {
+  return timelineFor().indexOf(status);
+}
+
+/**
+ * Why a move was refused, in words a person can act on.
+ *
+ * Lives here rather than with the machine because it needs the kitchen's own
+ * labels, and the machine deliberately knows nothing about wording. Only ever
+ * called on the failing path, so it can afford to work out which kind of wrong
+ * the attempt was: going backwards reads very differently from touching an
+ * order that finished an hour ago.
+ */
+export function explainRefusal(
+  from: OrderStatus,
+  to: OrderStatus,
   fulfillmentType: FulfillmentType,
-): number {
-  return timelineFor(fulfillmentType).indexOf(status);
+): string {
+  const fromLabel = statusLabel(from, fulfillmentType);
+  const toLabel = statusLabel(to, fulfillmentType).toLowerCase();
+
+  if (from === to) {
+    return `This order is already ${fromLabel.toLowerCase()}.`;
+  }
+  if (from === "cancelled") {
+    return "This order was cancelled, and a cancelled order can't be reopened.";
+  }
+  if (from === "completed") {
+    return `This order is already ${fromLabel.toLowerCase()}, so it can't be moved again.`;
+  }
+
+  const stages = timelineFor();
+  const fromStage = stages.indexOf(from);
+  const toStage = stages.indexOf(to);
+  if (fromStage !== -1 && toStage !== -1 && toStage < fromStage) {
+    return `An order can't go back to ${toLabel} once it's ${fromLabel.toLowerCase()}.`;
+  }
+
+  const step = nextStatus(from);
+  if (step) {
+    return `${fromLabel} moves to ${statusLabel(step, fulfillmentType).toLowerCase()} next — one step at a time.`;
+  }
+  return `${fromLabel} can't move to ${toLabel}.`;
 }

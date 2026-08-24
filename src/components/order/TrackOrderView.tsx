@@ -12,6 +12,7 @@ import {
 } from "@/lib/order/reference";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
+import type { OrderStatus } from "@/lib/types";
 
 /**
  * Order lookup.
@@ -28,12 +29,58 @@ export function TrackOrderView() {
 
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /**
+   * What the kitchen says about each order listed below.
+   *
+   * The copies in this tab were written when the orders were placed, so their
+   * status can only ever be a guess from the clock — and on an order the
+   * restaurant has since cancelled, that guess is actively wrong. This list
+   * would cheerfully say "Delivered" beside an order that never left. So each
+   * one is checked against the server, once, on load.
+   *
+   * Same public endpoint the tracking page uses: it returns a status and
+   * nothing else, so listing these costs no privacy.
+   */
+  const [live, setLive] = useState<Record<string, OrderStatus>>({});
 
   useEffect(() => {
     void useOrderStore.persist.rehydrate();
   }, []);
 
   const recent = sortOrders(orders);
+  const references = recent.map((order) => order.reference).join(",");
+
+  useEffect(() => {
+    if (!references) return;
+    let cancelled = false;
+
+    void (async () => {
+      const entries = await Promise.all(
+        references.split(",").map(async (reference) => {
+          try {
+            const response = await fetch(`/api/orders/${reference}/status`, {
+              cache: "no-store",
+            });
+            if (!response.ok) return null;
+            const body = (await response.json()) as { status: OrderStatus };
+            return [reference, body.status] as const;
+          } catch {
+            // Offline, or the order predates a server restart. Falling back to
+            // the simulated status is fine — it is what this list showed
+            // before, and a missing row would be worse than a stale one.
+            return null;
+          }
+        }),
+      );
+      if (!cancelled) {
+        setLive(Object.fromEntries(entries.filter((entry) => entry !== null)));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [references]);
 
   const lookup = (event: React.FormEvent) => {
     event.preventDefault();
@@ -112,7 +159,11 @@ export function TrackOrderView() {
                         {order.reference}
                       </span>
                       <span className="text-sm text-ink-muted">
-                        {statusLabel(deriveStatus(order), order.fulfillment.type)} ·{" "}
+                        {statusLabel(
+                          live[order.reference] ?? deriveStatus(order),
+                          order.fulfillment.type,
+                        )}{" "}
+                        ·{" "}
                         {order.lines.length}{" "}
                         {order.lines.length === 1 ? "item" : "items"}
                       </span>

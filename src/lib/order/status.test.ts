@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deriveStatus, statusLabel, timelineFor, timelineIndex } from "./status";
+import {
+  deriveStatus,
+  statusLabel,
+  timelineFor,
+  timelineIndex,
+} from "./status";
+import { ORDER_FLOW } from "./transitions";
 import {
   generateOrderReference,
   isValidReferenceShape,
@@ -31,19 +37,36 @@ describe("deriveStatus", () => {
     expect(deriveStatus(delivery, at(2))).toBe("confirmed");
   });
 
-  it("moves through preparing, ready, out for delivery, delivered", () => {
+  it("moves through preparing, ready, delivered", () => {
     expect(deriveStatus(delivery, at(10))).toBe("preparing");
     expect(deriveStatus(delivery, at(26))).toBe("ready");
-    expect(deriveStatus(delivery, at(32))).toBe("outForDelivery");
     expect(deriveStatus(delivery, at(40))).toBe("completed");
     expect(deriveStatus(delivery, at(400))).toBe("completed");
   });
 
-  it("never says 'out for delivery' on a pickup order", () => {
-    const pickup = base("pickup", 40);
-    const statuses = [0, 10, 26, 32, 39].map((m) => deriveStatus(pickup, at(m)));
-    expect(statuses).not.toContain("outForDelivery");
-    expect(statuses).toEqual(["confirmed", "preparing", "ready", "ready", "ready"]);
+  it("never simulates the retired 'out for delivery' stage", () => {
+    for (const type of ["delivery", "pickup"] as const) {
+      const order = base(type, 40);
+      const statuses = [0, 10, 26, 32, 39, 41].map((m) => deriveStatus(order, at(m)));
+      expect(statuses, type).not.toContain("outForDelivery");
+    }
+  });
+
+  it("simulates delivery and pickup identically", () => {
+    for (const minute of [0, 10, 26, 32, 39, 41]) {
+      expect(deriveStatus(base("pickup", 40), at(minute))).toBe(
+        deriveStatus(base("delivery", 40), at(minute)),
+      );
+    }
+  });
+
+  it("never goes backwards as the clock advances", () => {
+    let furthest = -1;
+    for (let minute = 0; minute <= 60; minute += 1) {
+      const index = timelineIndex(deriveStatus(delivery, at(minute)));
+      expect(index, `minute ${minute}`).toBeGreaterThanOrEqual(furthest);
+      furthest = index;
+    }
   });
 
   it("is stable — the same moment always gives the same status", () => {
@@ -93,32 +116,41 @@ describe("deriveStatus", () => {
 });
 
 describe("timeline", () => {
-  it("has five stages for delivery and four for pickup", () => {
-    expect(timelineFor("delivery")).toHaveLength(5);
-    expect(timelineFor("pickup")).toHaveLength(4);
-    expect(timelineFor("pickup")).not.toContain("outForDelivery");
+  it("is the four stages the customer is shown, in order", () => {
+    expect(timelineFor()).toEqual(["confirmed", "preparing", "ready", "completed"]);
   });
 
-  it("labels the final stage by how the order was fulfilled", () => {
+  it("reads the same journey the kitchen's buttons follow", () => {
+    expect(timelineFor()).toEqual([...ORDER_FLOW]);
+  });
+
+  it("labels the last two stages by how the order was fulfilled", () => {
+    expect(statusLabel("confirmed", "delivery")).toBe("Order received");
+    expect(statusLabel("preparing", "delivery")).toBe("Preparing");
+    expect(statusLabel("ready", "delivery")).toBe("Ready");
+    expect(statusLabel("ready", "pickup")).toBe("Ready for pickup");
     expect(statusLabel("completed", "delivery")).toBe("Delivered");
     expect(statusLabel("completed", "pickup")).toBe("Collected");
-    expect(statusLabel("ready", "pickup")).toBe("Ready for pickup");
   });
 
   it("orders every stage", () => {
-    const stages = timelineFor("delivery");
-    const indexes = stages.map((s) => timelineIndex(s, "delivery"));
-    expect(indexes).toEqual([0, 1, 2, 3, 4]);
+    expect(timelineFor().map(timelineIndex)).toEqual([0, 1, 2, 3]);
   });
 
-  it("puts every derived status somewhere on its own timeline", () => {
+  it("puts every derived status on the timeline", () => {
     for (const type of ["delivery", "pickup"] as const) {
       const order = base(type, 40);
       for (const minute of [0, 10, 26, 32, 41]) {
         const status = deriveStatus(order, at(minute));
-        expect(timelineIndex(status, type), `${type} @${minute}`).toBeGreaterThanOrEqual(0);
+        expect(timelineIndex(status), `${type} @${minute}`).toBeGreaterThanOrEqual(0);
       }
     }
+  });
+
+  it("puts cancelled nowhere on it — a cancelled order left the track", () => {
+    // -1, so the tracker knows to draw the cancelled panel rather than light
+    // up stage zero and tell the customer their order was just received.
+    expect(timelineIndex("cancelled")).toBe(-1);
   });
 });
 

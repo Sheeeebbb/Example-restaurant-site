@@ -14,7 +14,9 @@ import {
   getOrder,
   listOrders,
   saveOrder,
-  updateOrderStatus,
+  advanceOrder,
+  cancelOrder,
+  transitionOrder,
 } from "../order/order-repository";
 import { deriveStatus } from "../order/status";
 import type { Order } from "../types";
@@ -86,17 +88,9 @@ describe("dashboard stats", () => {
           { status: "ready", at: NOW.toISOString(), by: "staff" },
         ],
       });
-    const enRoute = order({
-      status: "outForDelivery",
-      history: [
-        { status: "confirmed", at: NOW.toISOString(), by: "system" },
-        { status: "outForDelivery", at: NOW.toISOString(), by: "staff" },
-      ],
-    });
-
-    const stats = calculateStats([ready("pickup"), ready("delivery"), enRoute], NOW);
+    const stats = calculateStats([ready("pickup"), ready("delivery")], NOW);
     expect(stats.awaitingPickup).toBe(1);
-    expect(stats.outForDelivery).toBe(1);
+    expect(stats.awaitingDriver).toBe(1);
   });
 
   it("reflects simulated progress on orders staff have not touched", () => {
@@ -132,28 +126,195 @@ describe("order repository", () => {
 
   it("records a staff status change in the history", async () => {
     await saveOrder(order({ reference: "UT-HIST" }));
-    const updated = await updateOrderStatus("UT-HIST", "preparing", "On the grill");
+    const result = await advanceOrder("UT-HIST");
 
+    expect(result.ok).toBe(true);
+    const updated = result.ok ? result.order : null;
     expect(updated?.status).toBe("preparing");
     expect(updated?.history).toHaveLength(2);
-    expect(updated?.history.at(-1)).toMatchObject({
-      status: "preparing",
-      note: "On the grill",
-      by: "staff",
-    });
+    expect(updated?.history.at(-1)).toMatchObject({ status: "preparing", by: "staff" });
   });
 
   it("makes a staff status override the clock simulation", async () => {
     await saveOrder(order({ reference: "UT-OVER" }));
-    const updated = await updateOrderStatus("UT-OVER", "ready");
+    await advanceOrder("UT-OVER");
+    const result = await advanceOrder("UT-OVER");
+    const updated = result.ok ? result.order : null;
 
     // Two minutes in, the simulation would still say "confirmed".
     const soon = new Date(NOW.getTime() + 2 * 60_000);
     expect(deriveStatus(updated!, soon)).toBe("ready");
   });
 
-  it("returns null when updating an order that doesn't exist", async () => {
-    expect(await updateOrderStatus("UT-NOPE", "ready")).toBeNull();
+  /**
+   * The rules, tested where they are ENFORCED rather than where they are
+   * declared. `transitions.test.ts` proves the machine says the right thing;
+   * these prove nothing can write to the store without asking it — which is the
+   * claim that actually matters when the request arrives from somewhere other
+   * than the button.
+   */
+  describe("one-way progression", () => {
+    const place = async (reference: string, status: Order["status"] = "confirmed") =>
+      saveOrder(order({ reference, status }));
+
+    it("walks the full path: received → preparing → ready → delivered", async () => {
+      await place("UT-WALK");
+
+      const seen: string[] = ["confirmed"];
+      for (let step = 0; step < 3; step += 1) {
+        const result = await advanceOrder("UT-WALK");
+        expect(result.ok, `step ${step}`).toBe(true);
+        if (result.ok) seen.push(result.order.status);
+      }
+
+      expect(seen).toEqual(["confirmed", "preparing", "ready", "completed"]);
+      expect((await getOrder("UT-WALK"))?.history.map((event) => event.status)).toEqual([
+        "confirmed",
+        "preparing",
+        "ready",
+        "completed",
+      ]);
+    });
+
+    it("refuses to skip a stage, however the request is phrased", async () => {
+      await place("UT-SKIP");
+
+      for (const target of ["ready", "completed"] as const) {
+        const result = await transitionOrder("UT-SKIP", target);
+        expect(result.ok, target).toBe(false);
+        expect(result.ok ? "" : result.error).toMatch(/one step at a time/i);
+      }
+      // ...and the order did not move.
+      expect((await getOrder("UT-SKIP"))?.status).toBe("confirmed");
+    });
+
+    it("refuses every backwards move, and leaves the order where it was", async () => {
+      await place("UT-BACK", "ready");
+
+      for (const target of ["preparing", "confirmed", "pending"] as const) {
+        const result = await transitionOrder("UT-BACK", target);
+        expect(result.ok, target).toBe(false);
+        expect(result.ok ? "" : result.reason).toBe("invalid");
+      }
+      expect((await getOrder("UT-BACK"))?.status).toBe("ready");
+      // Nothing refused was written to the audit trail either.
+      expect((await getOrder("UT-BACK"))?.history).toHaveLength(1);
+    });
+
+    it("will not move a delivered order at all", async () => {
+      await place("UT-DONE", "completed");
+
+      for (const target of ["ready", "preparing", "confirmed", "cancelled"] as const) {
+        expect((await transitionOrder("UT-DONE", target, { reason: "x" })).ok, target).toBe(
+          false,
+        );
+      }
+      expect((await advanceOrder("UT-DONE")).ok).toBe(false);
+      expect((await getOrder("UT-DONE"))?.status).toBe("completed");
+    });
+
+    it("refuses an instruction aimed at a status the order has already left", async () => {
+      await place("UT-RACE");
+      await advanceOrder("UT-RACE"); // now preparing
+
+      // A second tap on a button drawn when the order was still "confirmed".
+      const stale = await advanceOrder("UT-RACE", "confirmed");
+      expect(stale.ok).toBe(false);
+      expect(stale.ok ? "" : stale.reason).toBe("conflict");
+      // The refusal carries the truth, so a stale screen can right itself.
+      expect(stale.ok ? null : stale.order?.status).toBe("preparing");
+    });
+  });
+
+  describe("cancellation", () => {
+    it("can be done from any stage before the order finishes", async () => {
+      for (const from of ["confirmed", "preparing", "ready"] as const) {
+        const reference = `UT-C${from.slice(0, 3).toUpperCase()}`;
+        await saveOrder(order({ reference, status: from }));
+
+        const result = await cancelOrder(reference, "An item is unavailable.");
+        expect(result.ok, from).toBe(true);
+        expect(result.ok ? result.order.status : null).toBe("cancelled");
+      }
+    });
+
+    it("stores the reason and a timestamp on the order", async () => {
+      await saveOrder(order({ reference: "UT-WHY", status: "preparing" }));
+      const result = await cancelOrder("UT-WHY", "  The fryer has broken.  ");
+
+      expect(result.ok).toBe(true);
+      const cancelled = result.ok ? result.order : null;
+      expect(cancelled?.cancellationReason).toBe("The fryer has broken.");
+      expect(cancelled?.cancelledAt).toBeTruthy();
+      expect(Number.isNaN(Date.parse(cancelled!.cancelledAt!))).toBe(false);
+
+      // ...and in the audit trail too, against the event that ended the order.
+      expect(cancelled?.history.at(-1)).toMatchObject({
+        status: "cancelled",
+        note: "The fryer has broken.",
+        by: "staff",
+      });
+    });
+
+    it("refuses to cancel without a reason — the customer is shown it", async () => {
+      await saveOrder(order({ reference: "UT-MUTE" }));
+
+      for (const reason of ["", "   "]) {
+        const result = await cancelOrder("UT-MUTE", reason);
+        expect(result.ok, JSON.stringify(reason)).toBe(false);
+        expect(result.ok ? "" : result.error).toMatch(/reason/i);
+      }
+      expect((await getOrder("UT-MUTE"))?.status).toBe("confirmed");
+    });
+
+    it("is final — a cancelled order resumes into nothing", async () => {
+      await saveOrder(order({ reference: "UT-GONE" }));
+      await cancelOrder("UT-GONE", "Kitchen closing.");
+
+      for (const target of ["confirmed", "preparing", "ready", "completed"] as const) {
+        const result = await transitionOrder("UT-GONE", target);
+        expect(result.ok, target).toBe(false);
+        expect(result.ok ? "" : result.error).toMatch(/cancelled/i);
+      }
+      expect((await advanceOrder("UT-GONE")).ok).toBe(false);
+
+      const stored = await getOrder("UT-GONE");
+      expect(stored?.status).toBe("cancelled");
+      // The original reason survives every attempt to move it.
+      expect(stored?.cancellationReason).toBe("Kitchen closing.");
+    });
+
+    it("cannot be cancelled twice", async () => {
+      await saveOrder(order({ reference: "UT-TWICE" }));
+      await cancelOrder("UT-TWICE", "First reason.");
+
+      const second = await cancelOrder("UT-TWICE", "Second reason.");
+      expect(second.ok).toBe(false);
+      expect((await getOrder("UT-TWICE"))?.cancellationReason).toBe("First reason.");
+    });
+
+    it("leaves an ordinary advance with no cancellation fields", async () => {
+      await saveOrder(order({ reference: "UT-CLEAN" }));
+      const result = await advanceOrder("UT-CLEAN");
+      const advanced = result.ok ? result.order : null;
+
+      expect(advanced?.cancellationReason).toBeUndefined();
+      expect(advanced?.cancelledAt).toBeUndefined();
+      expect(advanced?.history.at(-1)?.note).toBeUndefined();
+    });
+  });
+
+  it("reports 'not found' for an order that doesn't exist", async () => {
+    const advanced = await advanceOrder("UT-NOPE");
+    expect(advanced).toMatchObject({ ok: false, reason: "not-found" });
+    expect(await transitionOrder("UT-NOPE", "ready")).toMatchObject({
+      ok: false,
+      reason: "not-found",
+    });
+    expect(await cancelOrder("UT-NOPE", "Closed.")).toMatchObject({
+      ok: false,
+      reason: "not-found",
+    });
   });
 });
 

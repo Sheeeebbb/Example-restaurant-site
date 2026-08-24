@@ -23,8 +23,8 @@ export function OrderTimeline({
   status: OrderStatus;
   fulfillmentType: FulfillmentType;
 }) {
-  const stages = timelineFor(fulfillmentType);
-  const current = timelineIndex(status, fulfillmentType);
+  const stages = timelineFor();
+  const current = timelineIndex(status);
 
   return (
     <ol className="space-y-0">

@@ -71,9 +71,9 @@ export default async function AdminDashboardPage() {
           tone="warning"
         />
         <StatCard
-          label="Out for delivery"
-          value={String(stats.outForDelivery)}
-          hint="With a driver"
+          label="Awaiting driver"
+          value={String(stats.awaitingDriver)}
+          hint="Boxed and ready to go out"
           tone="ember"
         />
       </div>

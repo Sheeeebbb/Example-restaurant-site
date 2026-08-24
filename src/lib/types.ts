@@ -242,8 +242,16 @@ export interface PaymentResult {
 /* ── Orders ───────────────────────────────────────────────────────────────── */
 
 /**
- * The kitchen lifecycle. `outForDelivery` only occurs on delivery orders;
- * pickup goes `ready` → `completed` when the customer collects.
+ * The kitchen lifecycle.
+ *
+ * The allowed moves between these live in `lib/order/transitions.ts`, which is
+ * the only place that decides what an order may do next. The short version:
+ * `confirmed → preparing → ready → completed`, forwards only, with `cancelled`
+ * reachable from any unfinished stage and leading nowhere.
+ *
+ * `outForDelivery` is retired — delivery and pickup now follow the same path —
+ * but stays in the union so orders placed before that changed still type-check
+ * and can still be finished.
  */
 export type OrderStatus =
   | "pending"
@@ -281,6 +289,18 @@ export interface Order {
   status: OrderStatus;
   /** Append-only audit trail; drives the customer-facing tracking timeline. */
   history: OrderStatusEvent[];
+  /**
+   * Why the restaurant cancelled, in the staff member's own words.
+   *
+   * Written for the customer, who is shown it verbatim on their tracking page —
+   * so the staff form says as much before anyone types into it. Present only on
+   * a cancelled order; the history event carries the same text, and this is the
+   * copy everything reads so nothing has to walk the audit trail to answer a
+   * question the order can answer itself.
+   */
+  cancellationReason?: string;
+  /** When the cancellation was recorded. Present only on a cancelled order. */
+  cancelledAt?: IsoDateTime;
   payment: PaymentResult;
   estimatedReadyAt: IsoDateTime;
 }
