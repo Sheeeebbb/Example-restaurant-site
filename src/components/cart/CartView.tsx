@@ -13,6 +13,7 @@ import { TimingPicker } from "./TimingPicker";
 import { CustomerForm } from "./CustomerForm";
 import { DraftHydration } from "./DraftHydration";
 import { useCartStore } from "@/lib/cart/store";
+import { useLineRemoval } from "@/lib/cart/use-line-removal";
 import { useCartSummary } from "@/lib/cart/selectors";
 import { useOrderDraftStore } from "@/lib/order/draft-store";
 import { validateOrderDraft, validateTiming } from "@/lib/order/validation";
@@ -51,6 +52,11 @@ export function CartView({
 
   const draft = useOrderDraftStore((state) => state.draft);
   const summary = useCartSummary();
+  /*
+   * Lines on their way out live here rather than in a row, so a row fading out
+   * does not have to outlive itself. See `useLineRemoval`.
+   */
+  const { isLeaving, requestRemove, changeQuantity } = useLineRemoval();
 
   const [showErrors, setShowErrors] = useState(false);
 
@@ -180,6 +186,9 @@ export function CartView({
                     line={line}
                     photoSrc={photoMap[line.imageSrc] ?? null}
                     categoryId={categoryByItemId[line.menuItemId] ?? "cat-burgers"}
+                    leaving={isLeaving(line.lineId)}
+                    onQuantityChange={changeQuantity}
+                    onRemove={requestRemove}
                   />
                 ))}
               </ul>

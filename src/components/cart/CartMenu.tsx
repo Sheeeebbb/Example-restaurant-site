@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CartButton } from "./CartButton";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { QuantityStepper } from "@/components/menu/QuantityStepper";
 import { useCartStore } from "@/lib/cart/store";
+import { useLineRemoval } from "@/lib/cart/use-line-removal";
 import { useCartSummary } from "@/lib/cart/selectors";
 import { formatMoney } from "@/lib/money";
 
@@ -26,6 +28,12 @@ import { formatMoney } from "@/lib/money";
  * was — a link to the cart page. Requiring a tap to open a preview, and a second
  * tap to reach the cart, would be a worse mobile cart than the one that already
  * works.
+ *
+ * On the cart page itself the whole control is withheld — button and panel
+ * alike, on every screen size. A link to the page you are reading is noise, and
+ * a preview of the cart floating above the cart is worse than noise. The route
+ * is read with `usePathname`, the router's own answer, rather than anything
+ * this component tracks for itself.
  */
 
 /** Leaving the button for the panel crosses a gap; closing instantly loses it. */
@@ -38,11 +46,11 @@ export function CartMenu({
   photoMap: Record<string, string | null>;
   categoryByItemId: Record<string, string>;
 }) {
+  const pathname = usePathname();
   const lines = useCartStore((state) => state.lines);
-  const setQuantity = useCartStore((state) => state.setQuantity);
-  const removeLine = useCartStore((state) => state.removeLine);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
   const summary = useCartSummary();
+  const { isLeaving, requestRemove, changeQuantity } = useLineRemoval();
 
   const [canHover, setCanHover] = useState(false);
   const [open, setOpen] = useState(false);
@@ -68,7 +76,10 @@ export function CartMenu({
 
   const scheduleClose = useCallback(() => {
     cancelClose();
-    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
+    closeTimer.current = window.setTimeout(
+      () => setOpen(false),
+      CLOSE_DELAY_MS,
+    );
   }, [cancelClose]);
 
   useEffect(() => cancelClose, [cancelClose]);
@@ -85,6 +96,15 @@ export function CartMenu({
 
   const showPanel = canHover && open && hasHydrated;
 
+  /*
+   * Nothing at all on the cart page.
+   *
+   * Returned after every hook so the order of hooks stays identical on both
+   * sides of the boundary — leaving early above would break the rules of hooks
+   * the moment the customer navigated to or away from /cart.
+   */
+  if (pathname === "/cart") return null;
+
   return (
     <div
       ref={containerRef}
@@ -99,7 +119,9 @@ export function CartMenu({
          tabbing past its last control closes it again. */
       onFocus={() => canHover && setOpen(true)}
       onBlur={(event) => {
-        if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
+        if (
+          !containerRef.current?.contains(event.relatedTarget as Node | null)
+        ) {
           setOpen(false);
         }
       }}
@@ -127,68 +149,93 @@ export function CartMenu({
           {lines.length === 0 ? (
             <div className="px-4 py-6 text-center">
               <p className="font-display text-base font-semibold text-ink">
-                Your cart is waiting.
+                Your cart is empty
               </p>
               <p className="mt-1 text-sm text-ink-muted">
-                Nothing in it yet.
+                Let&rsquo;s fix that. Pick your favorites from the menu.
               </p>
               <Link
                 href="/menu"
                 className="mt-4 inline-flex min-h-10 items-center justify-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
               >
-                Browse menu
+                Explore Menu
               </Link>
             </div>
           ) : (
             <>
               <ul className="max-h-[19rem] divide-y divide-line overflow-y-auto overscroll-contain">
                 {lines.map((line) => (
-                  <li key={line.lineId} className="flex gap-3 px-4 py-3">
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-control border border-line bg-surface-sunken">
-                      <FoodImage
-                        src={photoMap[line.imageSrc] ?? null}
-                        alt=""
-                        categoryId={categoryByItemId[line.menuItemId] ?? "cat-burgers"}
-                        sizes="48px"
-                        glyphClassName="h-5 w-5"
-                      />
-                    </div>
+                  /* Same exit as the cart page's rows, from the same hook: a
+                     line removed here fades and collapses exactly as it would
+                     there. See `CartLineRow` for why it is built this way. */
+                  <li
+                    key={line.lineId}
+                    aria-hidden={isLeaving(line.lineId) || undefined}
+                    className={`grid transition-[grid-template-rows,opacity] duration-[340ms] ease-out ${
+                      isLeaving(line.lineId)
+                        ? "grid-rows-[0fr] opacity-0"
+                        : "grid-rows-[1fr] opacity-100"
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="flex gap-3 px-4 py-3">
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-control border border-line bg-surface-sunken">
+                          <FoodImage
+                            src={photoMap[line.imageSrc] ?? null}
+                            alt=""
+                            categoryId={
+                              categoryByItemId[line.menuItemId] ?? "cat-burgers"
+                            }
+                            sizes="48px"
+                            glyphClassName="h-5 w-5"
+                          />
+                        </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-ink">
-                          {line.name}
-                        </p>
-                        <p className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                          {formatMoney(line.unitPrice * line.quantity)}
-                        </p>
-                      </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-sm font-semibold text-ink">
+                              {line.name}
+                            </p>
+                            <p className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                              {formatMoney(line.unitPrice * line.quantity)}
+                            </p>
+                          </div>
 
-                      {/* One line, truncated: the full breakdown is on the cart
+                          {/* One line, truncated: the full breakdown is on the cart
                           page, and a preview that wraps to four rows is not one. */}
-                      {line.selections.length > 0 && (
-                        <p className="truncate text-xs text-ink-muted">
-                          {line.selections.map((choice) => choice.name).join(" · ")}
-                        </p>
-                      )}
+                          {line.selections.length > 0 && (
+                            <p className="truncate text-xs text-ink-muted">
+                              {line.selections
+                                .map((choice) => choice.name)
+                                .join(" · ")}
+                            </p>
+                          )}
 
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <QuantityStepper
-                          quantity={line.quantity}
-                          onChange={(next) => setQuantity(line.lineId, next)}
-                          label=""
-                          allowRemove
-                          itemName={line.name}
-                          size="sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeLine(line.lineId)}
-                          className="min-h-9 rounded-control px-1.5 text-xs font-medium text-ink-muted underline-offset-4 transition-colors hover:text-danger hover:underline"
-                        >
-                          Remove
-                          <span className="sr-only"> {line.name} from your cart</span>
-                        </button>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <QuantityStepper
+                              quantity={line.quantity}
+                              onChange={(next) =>
+                                changeQuantity(line.lineId, next)
+                              }
+                              label=""
+                              allowRemove
+                              itemName={line.name}
+                              size="sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => requestRemove(line.lineId)}
+                              disabled={isLeaving(line.lineId)}
+                              className="min-h-9 rounded-control px-1.5 text-xs font-medium text-ink-muted underline-offset-4 transition-colors hover:text-danger hover:underline"
+                            >
+                              Remove
+                              <span className="sr-only">
+                                {" "}
+                                {line.name} from your cart
+                              </span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </li>
