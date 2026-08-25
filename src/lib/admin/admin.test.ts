@@ -7,7 +7,12 @@ import {
   updateMenuItem,
   type MenuItemInput,
 } from "./menu-admin";
-import { isValidPasscode, isValidSession, sessionCookieValue } from "./auth";
+import {
+  isValidPasscode,
+  isValidSession,
+  sessionCookieValue,
+  shouldUseSecureCookie,
+} from "./auth";
 import { resetStore } from "../server/store";
 import { getMenuItemBySlug, getMenuItems } from "../data/repository";
 import {
@@ -553,5 +558,41 @@ describe("menu item photographs", () => {
       const result = await createMenuItem({ ...base, imageSrc });
       expect(result.ok, imageSrc).toBe(false);
     }
+  });
+});
+
+describe("the staff session cookie", () => {
+  const request = (url: string, headers: Record<string, string> = {}) =>
+    new Request(url, { headers });
+
+  it("is Secure when the request came over HTTPS", () => {
+    expect(shouldUseSecureCookie(request("https://urbantable.test/api"))).toBe(
+      true,
+    );
+  });
+
+  it("is Secure behind a proxy that terminated TLS at the edge", () => {
+    expect(
+      shouldUseSecureCookie(
+        request("http://10.0.0.4/api", { "x-forwarded-proto": "https" }),
+      ),
+    ).toBe(true);
+    // A chain of proxies appends; the client's own protocol is the first entry.
+    expect(
+      shouldUseSecureCookie(
+        request("http://10.0.0.4/api", { "x-forwarded-proto": "https, http" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("is not Secure on a plaintext connection, which would drop the cookie", () => {
+    expect(shouldUseSecureCookie(request("http://192.168.1.5:3000/api"))).toBe(
+      false,
+    );
+    expect(
+      shouldUseSecureCookie(
+        request("http://192.168.1.5:3000/api", { "x-forwarded-proto": "http" }),
+      ),
+    ).toBe(false);
   });
 });

@@ -10,9 +10,27 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 217 unit tests, including regressions for every defect found in QA
+npm test         # 346 unit tests, including regressions for every defect found in QA
 npm run build
 ```
+
+### Opening it from a phone
+
+`npm run dev` also prints a `Network:` address — `http://192.168.x.x:3000` —
+which is how you look at the site on a real phone on the same wifi. That works
+out of the box: private network addresses are allowed to load dev-server
+internals, and nothing else is (`src/lib/config/dev-origins.ts` explains why
+that boundary is the right one, and what a page looks like when the origin is
+blocked — it renders perfectly and responds to nothing).
+
+For an address the private ranges cannot cover — a tunnel, a staging host, a
+container name — name it explicitly:
+
+```bash
+ALLOWED_DEV_ORIGINS="urban-table.ngrok-free.app,*.trycloudflare.com" npm run dev
+```
+
+Development only. `next start` serves any host and ignores all of this.
 
 ---
 

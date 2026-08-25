@@ -3,6 +3,7 @@ import {
   STAFF_COOKIE,
   isValidPasscode,
   sessionCookieValue,
+  shouldUseSecureCookie,
 } from "@/lib/admin/auth";
 
 /**
@@ -33,8 +34,10 @@ export async function POST(request: Request) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    // Not `secure` in development, where the dev server is plain HTTP.
-    secure: process.env.NODE_ENV === "production",
+    // Marked `Secure` whenever the request arrived over HTTPS, which is not the
+    // same question as whether this is a production build. See the note in
+    // `lib/admin/auth.ts`.
+    secure: shouldUseSecureCookie(request),
     maxAge: 60 * 60 * 8, // One shift.
   });
   return response;
