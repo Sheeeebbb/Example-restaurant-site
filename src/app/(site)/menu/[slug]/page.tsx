@@ -78,7 +78,10 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
         </ol>
       </nav>
 
-      <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
+      {/* `[&>*]:min-w-0` so the columns can shrink: a grid item will not go
+          narrower than its content, and at a large system font size the dish
+          name and price hold this one open wider than the phone. */}
+      <div className="grid gap-10 lg:grid-cols-2 lg:gap-14 [&>*]:min-w-0">
         {/*
           Image column — sticks on desktop so the dish stays in view while the
           customiser scrolls. It holds ONLY the image: everything else lives in

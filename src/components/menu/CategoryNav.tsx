@@ -53,7 +53,8 @@ export function CategoryNav({ sections }: { sections: NavSection[] }) {
   useEffect(() => {
     const read = () => {
       const styles = getComputedStyle(document.documentElement);
-      const header = parseFloat(styles.getPropertyValue("--header-height")) || 0;
+      const header =
+        parseFloat(styles.getPropertyValue("--header-height")) || 0;
       const nav = parseFloat(styles.getPropertyValue("--menu-nav-height")) || 0;
       setOffset(header + nav);
     };
@@ -179,9 +180,16 @@ export function CategoryNav({ sections }: { sections: NavSection[] }) {
             rows under an already two-row sticky header. `-mx-4 px-4` lets the
             row bleed to the screen edges so the last chip doesn't look clipped.
           */}
+          {/*
+              `overscroll-x-contain` keeps a swipe on this strip inside it. On
+              Android — and on One UI in particular, where back is a horizontal
+              edge swipe — a horizontal scroll that reaches its end otherwise
+              chains to the browser, and flicking the categories navigates the
+              customer off the menu instead of moving the chips.
+            */}
           <ul
             ref={listRef}
-            className="-mx-4 flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="-mx-4 flex gap-2 overflow-x-auto overscroll-x-contain px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {sections.map((section) => {
               const isActive = section.id === active;

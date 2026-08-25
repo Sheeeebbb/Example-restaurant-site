@@ -197,7 +197,16 @@
     -webkit-text-size-adjust: 100%;
   }
 
+
   body {
+    /*
+      Long unbreakable strings — an email address, a street name, a promo code —
+      wrap rather than forcing their container wider than the screen. It costs
+      nothing at normal sizes, and it is what keeps the layout intact when a
+      customer has Android's font scaling turned up, where the same words no
+      longer fit the line they were designed for.
+    */
+    overflow-wrap: break-word;
     background-color: var(--paper);
     color: var(--ink);
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -245,6 +254,22 @@
   label,
   [role="button"] {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+    Taps resolve immediately instead of waiting to see if they are a gesture.
+    `manipulation` keeps panning and pinch-zoom and gives up only double-tap
+    zoom, which no control here wants: on a control it removes the delay some
+    Android browsers still hold a tap for, and it stops an impatient second tap
+    zooming the page instead of pressing the button again.
+  */
+  a,
+  button,
+  summary,
+  label,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
   }
 
   :where(button, summary, [role="button"], label:has(input:not(:disabled))):not(
@@ -349,5 +374,35 @@
       opacity: 1;
       transform: scale(1);
     }
+  }
+}
+
+/* ==========================================================================
+   Form fields on touch devices
+   --------------------------------------------------------------------------
+   Android Chrome and Samsung Internet ZOOM THE PAGE IN when a field smaller
+   than 16px takes focus. iOS Safari does the same. The zoom is not undone when
+   the field is blurred, so from the first tap on a text box the viewport is
+   scaled and panned: the layout no longer matches the screen, the page scrolls
+   sideways, and every later tap lands somewhere other than where it was aimed.
+   It reads as "the touchscreen is broken" and it is invisible in a desktop
+   browser's device emulation, which does not implement focus zoom.
+
+   Every field here was 14px (`text-sm`), so every field triggered it.
+
+   Gated on `pointer: coarse` rather than a width, because this is a property of
+   touch input, not of small screens — an Android tablet zooms too, and a mouse
+   never does. Desktop keeps the 14px the design was drawn with.
+
+   Deliberately OUTSIDE `@layer`: unlayered rules outrank every layer, including
+   Tailwind's `utilities`, so this beats the `text-sm` on each field without
+   needing `!important` or an edit to every input in the project. A field under
+   16px on a touch screen is always a bug, so there is nothing to opt out of.
+   ========================================================================== */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 1rem;
   }
 }

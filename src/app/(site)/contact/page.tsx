@@ -32,7 +32,14 @@ export default function ContactPage() {
         </p>
       </div>
 
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
+      {/*
+        `[&>*]:min-w-0` for the third time in this project, and for the same
+        reason each time: a grid item will not shrink below the intrinsic width
+        of its content, and this column holds an email address that cannot be
+        broken. Without it a large system font size pushes the page wider than
+        the screen. See the cart and checkout grids.
+      */}
+      <div className="mt-12 grid gap-6 lg:grid-cols-3 [&>*]:min-w-0">
         <section
           aria-labelledby="reach-heading"
           className="rounded-card border border-line bg-surface p-6"

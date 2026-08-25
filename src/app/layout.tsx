@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import { CartHydration } from "@/components/cart/CartHydration";
 import { TouchActiveState } from "@/components/layout/TouchActiveState";
@@ -30,6 +30,33 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
   display: "swap",
 });
+
+/**
+ * The viewport, and one Android-specific instruction in it.
+ *
+ * `interactiveWidget: "resizes-content"` decides what the on-screen keyboard
+ * does to the page. Chrome for Android's default is `resizes-visual`: the
+ * keyboard slides over the page and the LAYOUT viewport keeps its full height,
+ * so `100dvh` does not change and anything anchored to the bottom — the product
+ * panel's Add button, the sticky add bar on a product page — stays where the
+ * bottom of the screen used to be, which is now underneath the keyboard. The
+ * customer types a note, then cannot reach the button that uses it.
+ *
+ * `resizes-content` shrinks the layout viewport to the space the keyboard
+ * leaves, so `dvh` and every sticky footer follow it up the screen. Nothing
+ * else about the page changes, and browsers that do not know the property
+ * ignore it.
+ *
+ * The rest is Next's default (`width=device-width, initial-scale=1`), written
+ * out here because it is now sharing a tag with something worth explaining.
+ * Note what is absent: no `maximum-scale`, no `user-scalable=no`. Pinch zoom
+ * stays available, which people with low vision rely on.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
 
 export const metadata: Metadata = {
   title: {

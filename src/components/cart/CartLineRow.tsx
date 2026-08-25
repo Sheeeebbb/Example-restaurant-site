@@ -129,7 +129,11 @@ export function CartLineRow({
                 itemName={line.name}
               />
 
-              <div className="flex items-center gap-4">
+              {/* Wraps because it has to: the stepper's buttons are a fixed
+                  44px each and do not shrink with the type, so at a large
+                  Android font size the unit price and Remove no longer fit
+                  beside them on a narrow phone. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <p className="text-sm tabular-nums text-ink-subtle">
                   {formatMoney(line.unitPrice)} each
                 </p>

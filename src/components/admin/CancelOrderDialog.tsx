@@ -109,7 +109,9 @@ export function CancelOrderDialog({
             if (error) setError(null);
           }}
           maxLength={500}
-          autoFocus
+          /* No autofocus: on a phone it opens the keyboard the instant the
+             dialog appears, covering the two buttons the dialog exists to
+             offer. `showModal()` already moves focus into the dialog. */
           aria-describedby="cancel-reason-help"
           aria-invalid={Boolean(error) || undefined}
           placeholder="We are unable to fulfil this order because…"
