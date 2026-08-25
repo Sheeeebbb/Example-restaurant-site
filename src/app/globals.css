@@ -212,6 +212,81 @@
     border-radius: 2px;
   }
 
+  /* ==========================================================================
+     Pressed feedback
+     --------------------------------------------------------------------------
+     Every interactive state in this project was written as `hover:`, and
+     Tailwind v4 compiles those inside `@media (hover: hover)`. That is correct
+     — it stops hover styles sticking to whatever was tapped last — but it left
+     a phone with NO feedback at all: 81 hover rules that never match, and not
+     one `:active` rule. A button that looks identical before, during and after
+     a tap is indistinguishable from a button that does not work, which is
+     exactly how it was reported.
+
+     So the pressed state is defined once, here, for every control at the same
+     time, rather than being added to eighty class lists that would drift.
+
+     `brightness()` rather than a colour: it darkens an ember button, a white
+     bordered chip and a surface card by the same amount without any of them
+     needing to name a second colour, so the existing design carries over
+     untouched.
+
+     Written with `:where()` so it has zero specificity — any component that
+     wants a different pressed state simply says so and wins.
+     ========================================================================== */
+
+  /*
+    The browser's own grey tap flash is replaced, not merely removed: the rules
+    below are what takes its place, and they fire on the same events.
+  */
+  a,
+  button,
+  summary,
+  label,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(button, summary, [role="button"], label:has(input:not(:disabled))):not(
+      :disabled
+    ):active {
+    filter: brightness(0.93);
+    transform: scale(0.985);
+  }
+
+  /*
+    Links get brightness and no transform, deliberately.
+
+    A stretched link — `after:absolute after:inset-0`, which is how a menu card
+    makes its whole surface tappable — would become the containing block for its
+    own ::after the moment it gained a transform or a filter. The tap target
+    would collapse to the width of the text mid-press, so the press itself could
+    slide off the thing being pressed. Opacity creates a stacking context but
+    not a containing block, so the card's tap area survives.
+  */
+  :where(a):active {
+    opacity: 0.7;
+  }
+
+  /*
+    A disabled control still deserves an answer, otherwise a tap on it is
+    silence — the specific complaint behind the staff sign-in button. It does
+    not darken (it is not doing anything) but it does acknowledge the touch.
+  */
+  :where(button, [role="button"]):disabled:active {
+    transform: scale(0.995);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Keep the darkening, drop the movement — WCAG 2.3.3. */
+    :where(button, summary, [role="button"], label:has(input:not(:disabled))):not(
+        :disabled
+      ):active,
+    :where(button, [role="button"]):disabled:active {
+      transform: none;
+    }
+  }
+
   ::selection {
     background-color: var(--ember);
     color: #fff;

@@ -10,9 +10,19 @@ const EXPLORE_LINKS = [
   { href: "/order/track", label: "Track an order" },
 ];
 
+/*
+ * The last line of the footer, where a staff link conventionally lives.
+ *
+ * The admin area existed with nothing anywhere on the site pointing at it, so
+ * the only way in was to already know the address — which reads, from the
+ * outside, as sign-in being broken. It is a normal link to a gated page: the
+ * proxy still sends anyone without a session to the passcode screen, so
+ * listing it gives away no access.
+ */
 const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy policy" },
   { href: "/terms", label: "Terms" },
+  { href: "/admin", label: "Staff sign in" },
 ];
 
 export function SiteFooter() {

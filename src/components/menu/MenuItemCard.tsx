@@ -87,7 +87,13 @@ export function MenuItemCard({
   return (
     <>
       <article
-        className={`group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card transition-[transform,box-shadow] duration-200 focus-within:-translate-y-1 focus-within:shadow-raised hover:-translate-y-1 hover:shadow-raised ${
+        /*
+          `active:` on the ARTICLE, not on the link: the whole card is the tap
+          target, so the whole card is what should answer a press. A transform
+          here is safe — the article is already `relative`, so it was the
+          stretched link's containing block before and still is.
+        */
+        className={`group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card transition-[transform,box-shadow] duration-200 focus-within:-translate-y-1 focus-within:shadow-raised hover:-translate-y-1 hover:shadow-raised active:scale-[0.985] active:shadow-card ${
           item.available ? "" : "opacity-75"
         }`}
       >
@@ -126,7 +132,9 @@ export function MenuItemCard({
                 aria-haspopup="dialog"
                 /* `after:` stretches this link over the whole card — one control,
                    one tab stop, the entire tile clickable. */
-                className="text-ink underline-offset-4 after:absolute after:inset-0 after:content-[''] group-hover:underline"
+                /* The card carries the pressed state; the title opting out of
+                   the global link fade keeps the two from doubling up. */
+                className="text-ink underline-offset-4 after:absolute after:inset-0 after:content-[''] active:opacity-100 group-hover:underline"
               >
                 {item.name}
               </Link>

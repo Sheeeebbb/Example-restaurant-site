@@ -124,7 +124,19 @@ export function ProductCustomizer({
   const clampQuantity = (next: number) =>
     setQuantity(Math.min(Math.max(1, next), RESTAURANT.ordering.maxQuantityPerLine));
 
-  const actionButton = (
+  /*
+   * The reason a press was refused, next to the button that refused it.
+   *
+   * This message used to sit further down the component body while the button
+   * was portalled into the panel's footer — so on a phone the explanation
+   * rendered below the fold of the scrolling body and the customer saw a tap
+   * that did nothing. Spring Water, which requires a still-or-sparkling choice
+   * and pre-selects neither, was the dish that made it obvious.
+   *
+   * Bundling the two means the message cannot be separated from the control
+   * again, wherever the button is rendered.
+   */
+  const addButton = (
     <button
       type="button"
       onClick={handleAdd}
@@ -143,6 +155,21 @@ export function ProductCustomizer({
         total={total}
       />
     </button>
+  );
+
+  const actionButton = (
+    <>
+      {showErrors && !canAdd && (
+        <p
+          id="add-error"
+          role="alert"
+          className="mb-2 text-sm font-medium text-danger"
+        >
+          Choose an option in every required section to continue.
+        </p>
+      )}
+      {addButton}
+    </>
   );
 
   return (
@@ -262,12 +289,6 @@ export function ProductCustomizer({
             {actionButton}
           </div>
         </>
-      )}
-
-      {showErrors && !canAdd && (
-        <p id="add-error" role="alert" className="mt-3 text-sm font-medium text-danger">
-          Please make a choice in every required section above.
-        </p>
       )}
 
       {/*

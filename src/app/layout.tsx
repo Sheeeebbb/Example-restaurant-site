@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import { CartHydration } from "@/components/cart/CartHydration";
+import { TouchActiveState } from "@/components/layout/TouchActiveState";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import "./globals.css";
 
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-paper text-ink">
         <CartHydration />
+        <TouchActiveState />
         {children}
       </body>
     </html>

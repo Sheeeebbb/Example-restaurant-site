@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 /**
  * Staff sign-in.
@@ -13,7 +13,6 @@ import { useRouter, useSearchParams } from "next/navigation";
  * `lib/admin/auth.ts`.
  */
 export function StaffLoginForm({ demoPasscode }: { demoPasscode: string | null }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/admin";
 
@@ -23,6 +22,22 @@ export function StaffLoginForm({ demoPasscode }: { demoPasscode: string | null }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    /*
+     * Say why, rather than going quiet.
+     *
+     * The button used to be `disabled` until this field had a value, which on a
+     * touch screen is indistinguishable from a broken button: a disabled
+     * control cannot be focused, shows no pressed state, and explains nothing.
+     * Tapping it was reported as "Sign In does not work". It now always
+     * submits, and an empty field is answered in words.
+     */
+    if (!passcode.trim()) {
+      setError("Enter the passcode to sign in.");
+      document.getElementById("passcode")?.focus();
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -39,9 +54,25 @@ export function StaffLoginForm({ demoPasscode }: { demoPasscode: string | null }
       return;
     }
 
-    // `refresh` so the proxy re-evaluates with the new cookie before we land.
-    router.replace(next.startsWith("/admin") ? next : "/admin");
-    router.refresh();
+    /*
+     * A full navigation, not a client-side one.
+     *
+     * This used to be `router.replace(next)` followed by `router.refresh()`.
+     * The refresh re-rendered the route we were still on — the sign-in page —
+     * and cancelled the replace with it, so a correct passcode set the cookie
+     * and then left the customer looking at the sign-in form for ever. Nothing
+     * announced the success, which is why it was reported as the button not
+     * working.
+     *
+     * Assigning the location instead makes the browser ask the server again
+     * from scratch, which is what an authentication boundary wants anyway: the
+     * proxy re-evaluates the route with the new cookie present rather than
+     * against a router cache populated while we were still signed out.
+     *
+     * `startsWith("/admin")` keeps `next` from being turned into an open
+     * redirect — it also rules out protocol-relative targets like "//evil".
+     */
+    window.location.assign(next.startsWith("/admin") ? next : "/admin");
   };
 
   return (
@@ -89,7 +120,9 @@ export function StaffLoginForm({ demoPasscode }: { demoPasscode: string | null }
 
           <button
             type="submit"
-            disabled={submitting || !passcode}
+            /* Only while a request is in flight — never merely because the
+               field is empty. See `submit`. */
+            disabled={submitting}
             className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? "Signing in…" : "Sign in"}
