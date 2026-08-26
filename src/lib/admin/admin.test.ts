@@ -21,6 +21,7 @@ import {
   saveOrder,
   advanceOrder,
   cancelOrder,
+  revertOrder,
   transitionOrder,
 } from "../order/order-repository";
 import { deriveStatus } from "../order/status";
@@ -236,7 +237,7 @@ describe("order repository", () => {
       expect((await getOrder("UT-SKIP"))?.status).toBe("confirmed");
     });
 
-    it("refuses every backwards move, and leaves the order where it was", async () => {
+    it("refuses every backwards move made as an ordinary step", async () => {
       await place("UT-BACK", "ready");
 
       for (const target of ["preparing", "confirmed", "pending"] as const) {
@@ -249,7 +250,7 @@ describe("order repository", () => {
       expect((await getOrder("UT-BACK"))?.history).toHaveLength(1);
     });
 
-    it("will not move a delivered order at all", async () => {
+    it("will not move a delivered order on, or cancel it, or step it back", async () => {
       await place("UT-DONE", "completed");
 
       for (const target of ["ready", "preparing", "confirmed", "cancelled"] as const) {
@@ -643,5 +644,158 @@ describe("the staff session cookie", () => {
         request("http://192.168.1.5:3000/api", { "x-forwarded-proto": "http" }),
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * Corrections, tested where they are ENFORCED.
+ *
+ * The claim that matters is not that a correction works — it is that ONLY a
+ * correction works. A request that names an earlier status without asking for a
+ * correction must be refused by the store, not merely left undrawn on a screen,
+ * because the screen is not what a stale client or a hand-rolled call goes
+ * through.
+ */
+describe("correcting a status backwards", () => {
+  const at = async (reference: string, status: Order["status"], type: "delivery" | "pickup" = "delivery") =>
+    saveOrder(
+      order({ reference, status, fulfillment: { type, timing: "asap" } }),
+    );
+
+  it("walks back each of the four corrections staff make", async () => {
+    const cases = [
+      ["preparing", "confirmed"],
+      ["ready", "preparing"],
+      ["outForDelivery", "ready"],
+      ["completed", "outForDelivery"],
+    ] as const;
+
+    for (const [from, to] of cases) {
+      const reference = `UT-B${from.slice(0, 3).toUpperCase()}`;
+      await at(reference, from);
+
+      const result = await revertOrder(reference, to, from);
+      expect(result.ok, `${from} -> ${to}`).toBe(true);
+      expect(result.ok ? result.order.status : null, `${from} -> ${to}`).toBe(to);
+      expect((await getOrder(reference))?.status, `${from} -> ${to}`).toBe(to);
+    }
+  });
+
+  it("goes back more than one stage in a single correction", async () => {
+    // Two quick taps put an order two stages ahead; one confirmation puts it
+    // back, rather than making staff click through two.
+    await at("UT-FAR", "completed");
+    const result = await revertOrder("UT-FAR", "preparing", "completed");
+    expect(result.ok).toBe(true);
+    expect((await getOrder("UT-FAR"))?.status).toBe("preparing");
+  });
+
+  it("records the correction, including where it came from", async () => {
+    await at("UT-TRAIL", "ready");
+    await revertOrder("UT-TRAIL", "preparing", "ready", "  Marked by mistake.  ");
+
+    const event = (await getOrder("UT-TRAIL"))?.history.at(-1);
+    expect(event).toMatchObject({
+      status: "preparing",
+      from: "ready",
+      note: "Marked by mistake.",
+      by: "staff",
+    });
+    expect(Number.isNaN(Date.parse(event!.at))).toBe(false);
+  });
+
+  it("does not demand a note — a correction is usually 'wrong button'", async () => {
+    await at("UT-QUIET", "ready");
+    const result = await revertOrder("UT-QUIET", "preparing", "ready");
+    expect(result.ok).toBe(true);
+    expect((await getOrder("UT-QUIET"))?.history.at(-1)?.note).toBeUndefined();
+  });
+
+  it("leaves a forward step unmarked, so the trail distinguishes the two", async () => {
+    await at("UT-MARK", "confirmed");
+    await advanceOrder("UT-MARK");
+    expect((await getOrder("UT-MARK"))?.history.at(-1)?.from).toBeUndefined();
+  });
+
+  it("refuses a correction aimed at a status the order has already left", async () => {
+    await at("UT-STALE", "ready");
+    await advanceOrder("UT-STALE"); // now out for delivery
+
+    // A dialog opened when the order still read "ready".
+    const stale = await revertOrder("UT-STALE", "preparing", "ready");
+    expect(stale.ok).toBe(false);
+    expect(stale.ok ? "" : stale.reason).toBe("conflict");
+    expect(stale.ok ? null : stale.order?.status).toBe("outForDelivery");
+    expect((await getOrder("UT-STALE"))?.status).toBe("outForDelivery");
+  });
+
+  it("refuses to move an order forwards", async () => {
+    await at("UT-FWD", "preparing");
+    const result = await revertOrder("UT-FWD", "completed", "preparing");
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.error).toMatch(/not behind preparing/i);
+    expect((await getOrder("UT-FWD"))?.status).toBe("preparing");
+  });
+
+  it("cannot reinstate a cancelled order, and says why", async () => {
+    await at("UT-REIN", "confirmed");
+    await cancelOrder("UT-REIN", "Kitchen closing.");
+
+    for (const target of ["confirmed", "preparing", "ready", "completed"] as const) {
+      const result = await revertOrder("UT-REIN", target, "cancelled");
+      expect(result.ok, target).toBe(false);
+      expect(result.ok ? "" : result.error, target).toMatch(/cancelled and refunded/i);
+    }
+
+    const stored = await getOrder("UT-REIN");
+    expect(stored?.status).toBe("cancelled");
+    expect(stored?.cancellationReason).toBe("Kitchen closing.");
+    expect(stored?.refund?.status).toBe("succeeded");
+  });
+
+  it("cannot be used to cancel — that has its own action and its own refund", async () => {
+    await at("UT-SNEAK", "ready");
+    const result = await revertOrder("UT-SNEAK", "cancelled", "ready");
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.error).toMatch(/use the cancel action/i);
+    expect((await getOrder("UT-SNEAK"))?.status).toBe("ready");
+    expect((await getOrder("UT-SNEAK"))?.refund).toBeUndefined();
+  });
+
+  it("will not send a collection back to a stage it never had", async () => {
+    await at("UT-BPICK", "completed", "pickup");
+    const result = await revertOrder("UT-BPICK", "outForDelivery", "completed");
+    expect(result.ok).toBe(false);
+    expect((await getOrder("UT-BPICK"))?.status).toBe("completed");
+  });
+
+  it("writes nothing at all when it refuses", async () => {
+    await at("UT-NOWRITE", "preparing");
+    const before = await getOrder("UT-NOWRITE");
+
+    await revertOrder("UT-NOWRITE", "completed", "preparing");
+    await revertOrder("UT-NOWRITE", "preparing", "preparing");
+    await revertOrder("UT-NOWRITE", "cancelled", "preparing");
+
+    const after = await getOrder("UT-NOWRITE");
+    expect(after?.status).toBe(before?.status);
+    expect(after?.history).toHaveLength(before!.history.length);
+  });
+
+  it("moves forward again afterwards, one step at a time", async () => {
+    await at("UT-RESUME", "outForDelivery");
+    await revertOrder("UT-RESUME", "preparing", "outForDelivery");
+
+    const next = await advanceOrder("UT-RESUME");
+    expect(next.ok && next.order.status).toBe("ready");
+  });
+
+  it("still refuses a skip after a correction", async () => {
+    await at("UT-SKIPBACK", "completed");
+    await revertOrder("UT-SKIPBACK", "confirmed", "completed");
+
+    const skip = await transitionOrder("UT-SKIPBACK", "completed");
+    expect(skip.ok).toBe(false);
+    expect((await getOrder("UT-SKIPBACK"))?.status).toBe("confirmed");
   });
 });

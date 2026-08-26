@@ -36,6 +36,24 @@ import type { FulfillmentType, OrderStatus } from "../types";
  *
  * Cancellation is deliberately NOT a step in the chain. It is a separate edge
  * available from any stage that hasn't finished, and it leads nowhere.
+ *
+ * ── Going backwards ─────────────────────────────────────────────────────────
+ *
+ * Staff mis-tap, and an order stuck a stage ahead of the food is worse than one
+ * that can be corrected. So a stage can be walked back — but it is a SEPARATE
+ * edge from the ordinary progression, exactly as cancellation is, and the two
+ * predicates are kept apart on purpose:
+ *
+ *   canTransition   the ordinary moves. One step forward, or cancel. This is
+ *                   what the quick button asks, and it still refuses every
+ *                   backwards move.
+ *   canRevert       the correction. Any EARLIER stage on this order's own path.
+ *
+ * Nothing routes a backwards move through `canTransition`, which is what stops
+ * a mis-typed request, an old client, or a stale screen from walking an order
+ * back by accident: reversing requires asking for it by name, through
+ * `revertOrder`, which the API reaches only from an explicit revert action.
+ * The confirmation dialog is the courtesy on top of that, not the mechanism.
  */
 
 /** The forward path a delivery order follows, in order. */
@@ -120,12 +138,18 @@ export function canCancel(status: OrderStatus): boolean {
 }
 
 /**
- * The whole rule, in one predicate.
+ * The ordinary moves, in one predicate.
  *
- * Exactly two moves are legal from any stage: one step forward along this
- * order's own path, or cancel. Everything else — backwards, skipping ahead, a
- * status onto itself, anything out of a terminal state, and "out for delivery"
- * on an order nobody is delivering — is false.
+ * Exactly two are legal from any stage: one step forward along this order's own
+ * path, or cancel. Everything else — backwards, skipping ahead, a status onto
+ * itself, anything out of a terminal state, and "out for delivery" on an order
+ * nobody is delivering — is false here.
+ *
+ * Backwards is false on purpose even though staff may now go back. Correcting a
+ * status is a different act with a different affordance and a different API
+ * verb, and `canRevert` is the predicate that answers for it. Keeping the two
+ * apart is what makes an accidental reversal impossible rather than merely
+ * unlikely: no amount of getting the ordinary request wrong can produce one.
  */
 export function canTransition(
   from: OrderStatus,
@@ -134,6 +158,62 @@ export function canTransition(
 ): boolean {
   if (to === "cancelled") return canCancel(from);
   return NEXT[fulfillmentType][from] === to;
+}
+
+/**
+ * Is `to` earlier than `from` on this order's own path?
+ *
+ * False when either status is not a stage of that path at all — `cancelled` is
+ * not behind anything, and neither is "out for delivery" on a collection. Those
+ * are not backwards moves, they are moves off the path, and they stay refused.
+ */
+export function isBackwards(
+  from: OrderStatus,
+  to: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): boolean {
+  const flow = orderFlow(fulfillmentType);
+  const fromStage = flow.indexOf(from);
+  const toStage = flow.indexOf(to);
+  return fromStage !== -1 && toStage !== -1 && toStage < fromStage;
+}
+
+/**
+ * May this order be corrected back to `to`?
+ *
+ * Any earlier stage qualifies, not merely the one immediately behind: two quick
+ * taps put an order two stages ahead of the food, and making staff confirm
+ * their way back one screen at a time would teach them to click through
+ * confirmations, which is the opposite of what a confirmation is for.
+ *
+ * A cancelled order is the exception and stays one: it is not a stage that ran
+ * ahead of itself, it is an order that ended, the customer has been told so,
+ * and a refund has been raised against it. Reinstating that is not a status
+ * correction — it is a new order.
+ */
+export function canRevert(
+  from: OrderStatus,
+  to: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): boolean {
+  if (from === "cancelled" || to === "cancelled") return false;
+  return isBackwards(from, to, fulfillmentType);
+}
+
+/**
+ * Every stage this order could be corrected back to, earliest first.
+ *
+ * The staff screen draws one control per entry, so this is also the answer to
+ * "what may I choose from" — the interface cannot offer a move the machine
+ * would refuse, because it asks the machine what to offer.
+ */
+export function revertTargets(
+  status: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): OrderStatus[] {
+  return orderFlow(fulfillmentType).filter((stage) =>
+    canRevert(status, stage, fulfillmentType),
+  );
 }
 
 /**

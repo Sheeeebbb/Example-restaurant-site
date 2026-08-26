@@ -10,7 +10,7 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 376 unit tests, including regressions for every defect found in QA
+npm test         # 407 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -167,6 +167,23 @@ pickup    Order received → Preparing → Ready → Collected
 Forwards only, one step at a time, no skipping — a delivery cannot arrive
 without having left. Cancellation is not a stage on either path; it is a
 separate edge from any unfinished status, and it leads nowhere.
+
+Staff can also walk a stage BACK, because an order stuck ahead of the food is
+worse than one that can be corrected. That is a third edge, kept apart from the
+other two on purpose: `canTransition` answers for the ordinary moves and still
+refuses every backwards target, `canRevert` answers for corrections, and no pair
+of statuses satisfies both (there is a test for exactly that). So a reversal
+cannot happen as a side effect of getting a forward request wrong — it requires
+`{ "action": "revert", "to": …, "from": … }`, naming both ends, which no stale
+button or old client can produce by accident. The confirmation dialog in front
+of it is a courtesy to the person pressing the button; `src/proxy.ts` is what
+makes the route unreachable without a staff session.
+
+A correction records where it came from (`OrderStatusEvent.from`) and an
+optional note, so the audit trail distinguishes "the kitchen started cooking" from
+"someone had marked this wrong". Cancellation is the one thing a correction
+cannot undo: the customer has been told and a refund has been raised, so
+reinstating is a new order, not a status fix.
 
 ### 5c. The staff gate is mocked, in one place
 

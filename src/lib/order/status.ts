@@ -1,5 +1,5 @@
 import type { FulfillmentType, Order, OrderStatus } from "../types";
-import { nextStatus, orderFlow } from "./transitions";
+import { isBackwards, nextStatus, orderFlow } from "./transitions";
 
 /**
  * Simulated order progress.
@@ -147,6 +147,72 @@ export function statusDescription(
  * lighting stage zero: a cancelled order has not "reached order received", it
  * has left the track.
  */
+/**
+ * Why a correction was refused.
+ *
+ * The other half of `explainRefusal`: that one answers "why won't it move on",
+ * this one answers "why won't it move back", and they are different questions
+ * with different right answers. A cancelled order is the one that matters —
+ * staff reach for a correction when they meant to reinstate, and the reply has
+ * to say that reinstating is not a thing this system does.
+ */
+export function explainRevertRefusal(
+  from: OrderStatus,
+  to: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): string {
+  const fromLabel = statusLabel(from, fulfillmentType);
+  const toLabel = statusLabel(to, fulfillmentType).toLowerCase();
+
+  if (from === "cancelled") {
+    return "This order was cancelled and refunded. A cancellation can't be corrected away — if the customer still wants the food, take a new order.";
+  }
+  if (to === "cancelled") {
+    return "Cancelling isn't a stage to move back to. Use the cancel action, which asks for a reason and refunds the payment.";
+  }
+  if (from === to) {
+    return `This order is already ${fromLabel.toLowerCase()}.`;
+  }
+  if (timelineIndex(to, fulfillmentType) === -1) {
+    return `${toLabel[0].toUpperCase()}${toLabel.slice(1)} isn't a stage of a ${
+      fulfillmentType === "delivery" ? "delivery" : "collection"
+    } order.`;
+  }
+  return `${toLabel[0].toUpperCase()}${toLabel.slice(1)} is not behind ${fromLabel.toLowerCase()} — to move an order on, use the next step.`;
+}
+
+/**
+ * The confirmation shown before an order is moved backwards.
+ *
+ * Lives here with the other wording so the sentence a staff member reads and
+ * the rule the server applies are derived from the same two statuses, and so
+ * this can be tested without rendering anything.
+ *
+ * A delivered order gets its own, blunter first line. Everything else on this
+ * screen is a correction to work in progress; that one is a claim about
+ * something the customer has already been told is finished, and it should not
+ * read like the others.
+ */
+export function revertWarning(
+  from: OrderStatus,
+  to: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): { title: string; detail: string; consequence: string } {
+  const fromLabel = statusLabel(from, fulfillmentType);
+  const toLabel = statusLabel(to, fulfillmentType);
+  const finished = from === "completed";
+
+  return {
+    title: finished
+      ? `This order is already marked ${fromLabel.toLowerCase()}.`
+      : "Move order backwards?",
+    detail: `You are changing this order from "${fromLabel}" back to "${toLabel}".`,
+    consequence: finished
+      ? `The customer has been told it was ${fromLabel.toLowerCase()}. Moving it back changes what their tracking shows and puts the order back into the kitchen's queue.`
+      : "This may affect the customer's order tracking and staff workflow.",
+  };
+}
+
 export function timelineIndex(
   status: OrderStatus,
   fulfillmentType: FulfillmentType,
@@ -181,12 +247,15 @@ export function explainRefusal(
     return `This order is already ${fromLabel.toLowerCase()}, so it can't be moved again.`;
   }
 
-  const stages = timelineFor(fulfillmentType);
-  const fromStage = stages.indexOf(from);
-  const toStage = stages.indexOf(to);
-  if (fromStage !== -1 && toStage !== -1 && toStage < fromStage) {
-    return `An order can't go back to ${toLabel} once it's ${fromLabel.toLowerCase()}.`;
+  if (isBackwards(from, to, fulfillmentType)) {
+    // Not "you can't" — you can, but not like this. Correcting a status is its
+    // own action, and the message says which one rather than leaving whoever
+    // hit this to conclude the order is stuck.
+    return `Moving an order back to ${toLabel} is a correction, not a step — confirm it from the order's status panel.`;
   }
+
+  const stages = timelineFor(fulfillmentType);
+  const toStage = stages.indexOf(to);
 
   // A stage that isn't on this order's path at all — "out for delivery" on a
   // collection — needs saying plainly, or the message reads as a scheduling

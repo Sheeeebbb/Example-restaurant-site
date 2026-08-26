@@ -102,7 +102,16 @@ export function OrdersBoard() {
    */
   const act = async (
     reference: string,
-    payload: { action: "advance" } | { action: "cancel"; reason: string },
+    payload:
+      | { action: "advance" }
+      | { action: "cancel"; reason: string }
+      /*
+       * A correction names both ends. `from` is added below like every other
+       * action's, and the server requires it here rather than treating it as
+       * an optimistic-concurrency nicety: a correction that cannot say what it
+       * is correcting is a guess.
+       */
+      | { action: "revert"; to: OrderStatus; reason: string },
     from: OrderStatus,
   ): Promise<string | null> => {
     let body: { ok: boolean; order?: Order; error?: string };
@@ -273,6 +282,13 @@ export function OrdersBoard() {
               onAdvance={() =>
                 act(selectedOrder.reference, { action: "advance" }, selectedStatus)
               }
+              onRevert={(to, note) =>
+                act(
+                  selectedOrder.reference,
+                  { action: "revert", to, reason: note },
+                  selectedStatus,
+                )
+              }
               onCancel={(reason) =>
                 act(selectedOrder.reference, { action: "cancel", reason }, selectedStatus)
               }
@@ -292,7 +308,7 @@ export function OrdersBoard() {
 
       <p className="mt-8 text-xs leading-relaxed text-ink-subtle">
         Status set here replaces the simulated progress the customer sees on
-        their tracking page. Orders move one step at a time and never backwards:{" "}
+        their tracking page. Orders move forward one step at a time:{" "}
         {timelineFor("delivery")
           .map((stage) => statusLabel(stage, "delivery"))
           .join(" → ")}
@@ -300,8 +316,9 @@ export function OrdersBoard() {
         {timelineFor("pickup")
           .map((stage) => statusLabel(stage, "pickup"))
           .join(" → ")}
-        {" "}for collection. Cancelling is separate, asks for a reason, refunds
-        the payment, and is final.
+        {" "}for collection. A stage can be corrected backwards from the order,
+        which asks you to confirm and is recorded on its history. Cancelling is
+        separate, asks for a reason, refunds the payment, and is final.
       </p>
     </div>
   );

@@ -4,12 +4,15 @@ import {
   PICKUP_FLOW,
   advanceAction,
   canCancel,
+  canRevert,
   canTransition,
+  isBackwards,
   isTerminalStatus,
   nextStatus,
   orderFlow,
+  revertTargets,
 } from "./transitions";
-import { explainRefusal } from "./status";
+import { explainRefusal, explainRevertRefusal, revertWarning } from "./status";
 import type { FulfillmentType, OrderStatus } from "../types";
 
 /**
@@ -285,10 +288,14 @@ describe("the one button staff are shown", () => {
 });
 
 describe("refusals explain themselves", () => {
-  it("says an order can't go backwards", () => {
-    expect(explainRefusal("outForDelivery", "preparing", "delivery")).toMatch(
-      /can't go back/i,
-    );
+  it("points a backwards attempt at the action that can do it", () => {
+    // Not "you can't" — you can, but not through the ordinary step.
+    const message = explainRefusal("outForDelivery", "preparing", "delivery");
+    expect(message).toMatch(/correction, not a step/i);
+    expect(message).toMatch(/confirm/i);
+  });
+
+  it("says a finished order is finished before it says anything else", () => {
     expect(explainRefusal("completed", "ready", "delivery")).toMatch(/already delivered/i);
   });
 
@@ -320,6 +327,189 @@ describe("refusals explain themselves", () => {
         for (const to of ALL) {
           const message = explainRefusal(from, to, type);
           expect(message.length, `${type}: ${from} → ${to}`).toBeGreaterThan(10);
+        }
+      }
+    }
+  });
+});
+
+/**
+ * Going backwards.
+ *
+ * The rules under test are not "a reversal is allowed" but the two that make it
+ * safe: it is a DIFFERENT edge from the ordinary progression, so nothing that
+ * asks for an ordinary move can produce one by accident; and it is refused out
+ * of a cancellation, which is an ending rather than a stage that overshot.
+ */
+describe("moving an order backwards", () => {
+  it("is offered from every stage that has something behind it", () => {
+    expect(revertTargets("preparing", "delivery")).toEqual(["confirmed"]);
+    expect(revertTargets("ready", "delivery")).toEqual(["confirmed", "preparing"]);
+    expect(revertTargets("outForDelivery", "delivery")).toEqual([
+      "confirmed",
+      "preparing",
+      "ready",
+    ]);
+    expect(revertTargets("completed", "delivery")).toEqual([
+      "confirmed",
+      "preparing",
+      "ready",
+      "outForDelivery",
+    ]);
+  });
+
+  it("offers nothing at the first stage — there is nowhere behind it", () => {
+    expect(revertTargets("confirmed", "delivery")).toEqual([]);
+  });
+
+  it("covers the four corrections staff actually make", () => {
+    const cases: [OrderStatus, OrderStatus][] = [
+      ["preparing", "confirmed"],
+      ["ready", "preparing"],
+      ["outForDelivery", "ready"],
+      ["completed", "outForDelivery"],
+    ];
+    for (const [from, to] of cases) {
+      expect(canRevert(from, to, "delivery"), `${from} -> ${to}`).toBe(true);
+      expect(isBackwards(from, to, "delivery"), `${from} -> ${to}`).toBe(true);
+    }
+  });
+
+  it("leaves a collection its own shorter set", () => {
+    expect(revertTargets("completed", "pickup")).toEqual([
+      "confirmed",
+      "preparing",
+      "ready",
+    ]);
+    // Never a stage that isn't on this order's path, in either direction.
+    expect(canRevert("completed", "outForDelivery", "pickup")).toBe(false);
+  });
+
+  it("is never the same edge as an ordinary move", () => {
+    // The property the whole design rests on: no pair is both. A request that
+    // asks for an ordinary transition therefore cannot reverse an order,
+    // whatever status it names.
+    for (const type of TYPES) {
+      for (const from of ALL) {
+        for (const to of ALL) {
+          const ordinary = canTransition(from, to, type);
+          const correction = canRevert(from, to, type);
+          expect(ordinary && correction, `${type}: ${from} -> ${to}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("never goes forwards, sideways, or nowhere", () => {
+    for (const type of TYPES) {
+      for (const from of ALL) {
+        for (const to of ALL) {
+          if (!canRevert(from, to, type)) continue;
+          const flow = orderFlow(type);
+          expect(flow.indexOf(to), `${type}: ${from} -> ${to}`).toBeLessThan(
+            flow.indexOf(from),
+          );
+        }
+      }
+    }
+  });
+
+  it("cannot reinstate a cancelled order", () => {
+    for (const type of TYPES) {
+      expect(revertTargets("cancelled", type), type).toEqual([]);
+      for (const to of ALL) {
+        expect(canRevert("cancelled", to, type), `${type}: cancelled -> ${to}`).toBe(
+          false,
+        );
+      }
+    }
+  });
+
+  it("cannot be used to cancel", () => {
+    for (const type of TYPES) {
+      for (const from of ALL) {
+        expect(canRevert(from, "cancelled", type), `${type}: ${from}`).toBe(false);
+      }
+    }
+  });
+
+  it("refuses to correct an order onto the status it is already in", () => {
+    for (const type of TYPES) {
+      for (const status of ALL) {
+        expect(canRevert(status, status, type), `${type}: ${status}`).toBe(false);
+      }
+    }
+  });
+});
+
+describe("the confirmation staff are shown before going back", () => {
+  it("names both ends of the move", () => {
+    const warning = revertWarning("ready", "preparing", "delivery");
+    expect(warning.title).toBe("Move order backwards?");
+    expect(warning.detail).toBe(
+      'You are changing this order from "Ready" back to "Preparing".',
+    );
+    expect(warning.consequence).toMatch(/tracking and staff workflow/i);
+  });
+
+  it("says plainly that a delivered order is already delivered", () => {
+    const warning = revertWarning("completed", "outForDelivery", "delivery");
+    expect(warning.title).toMatch(/already marked delivered/i);
+    expect(warning.consequence).toMatch(/the customer has been told/i);
+    // ...and it does not read like the ordinary one.
+    expect(warning.consequence).not.toBe(
+      revertWarning("ready", "preparing", "delivery").consequence,
+    );
+  });
+
+  it("uses the collection's words on a collection", () => {
+    expect(revertWarning("completed", "ready", "pickup").title).toMatch(
+      /already marked collected/i,
+    );
+    expect(revertWarning("ready", "preparing", "pickup").detail).toContain(
+      "Ready for pickup",
+    );
+  });
+
+  it("always gives a staff member all three sentences", () => {
+    for (const type of TYPES) {
+      for (const from of ALL) {
+        for (const to of revertTargets(from, type)) {
+          const warning = revertWarning(from, to, type);
+          for (const part of [warning.title, warning.detail, warning.consequence]) {
+            expect(part.length, `${type}: ${from} -> ${to}`).toBeGreaterThan(10);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe("refused corrections explain themselves", () => {
+  it("says a cancellation cannot be corrected away", () => {
+    const message = explainRevertRefusal("cancelled", "ready", "delivery");
+    expect(message).toMatch(/cancelled and refunded/i);
+    expect(message).toMatch(/new order/i);
+  });
+
+  it("sends someone reaching for cancel to the cancel action", () => {
+    expect(explainRevertRefusal("ready", "cancelled", "delivery")).toMatch(
+      /use the cancel action/i,
+    );
+  });
+
+  it("says which direction a forwards target is in", () => {
+    expect(explainRevertRefusal("preparing", "completed", "delivery")).toMatch(
+      /not behind preparing/i,
+    );
+  });
+
+  it("never returns an empty message, whatever it is asked", () => {
+    for (const type of TYPES) {
+      for (const from of ALL) {
+        for (const to of ALL) {
+          const message = explainRevertRefusal(from, to, type);
+          expect(message.length, `${type}: ${from} -> ${to}`).toBeGreaterThan(10);
         }
       }
     }

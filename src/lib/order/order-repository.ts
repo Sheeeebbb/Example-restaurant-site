@@ -1,7 +1,7 @@
 import type { Order, OrderStatus } from "../types";
 import { getStore } from "../server/store";
-import { canTransition, nextStatus } from "./transitions";
-import { explainRefusal, statusLabel } from "./status";
+import { canRevert, canTransition, nextStatus } from "./transitions";
+import { explainRefusal, explainRevertRefusal, statusLabel } from "./status";
 import { openRefund, settleRefund } from "./refund";
 
 /**
@@ -69,8 +69,21 @@ export async function transitionOrder(
   reference: string,
   to: OrderStatus,
   options: {
-    /** Staff's words. Required for a cancellation, ignored otherwise. */
+    /**
+     * Staff's words. Required for a cancellation, optional on a correction,
+     * ignored otherwise.
+     */
     reason?: string;
+    /**
+     * Treat this as a deliberate correction rather than an ordinary step.
+     *
+     * Set ONLY by `revertOrder`, which the API reaches only from an explicit
+     * revert action. Without it a backwards target is refused, which is what
+     * keeps an accidental reversal impossible rather than merely unlikely: no
+     * ordinary request — a stale button, an old client, a hand-rolled `curl`
+     * naming a status — can produce one, because none of them can set this.
+     */
+    backwards?: boolean;
     /**
      * The status the caller believed the order was in.
      *
@@ -103,11 +116,25 @@ export async function transitionOrder(
     };
   }
 
-  if (!canTransition(from, to, fulfillmentType)) {
+  /*
+   * The two allowed shapes of move, and nothing else.
+   *
+   * A correction is checked against `canRevert`; everything else against
+   * `canTransition`, which still refuses every backwards target. A caller that
+   * wants to go back has to have said so, in a separate call, having named
+   * where it believed the order was.
+   */
+  const permitted = options.backwards
+    ? canRevert(from, to, fulfillmentType)
+    : canTransition(from, to, fulfillmentType);
+
+  if (!permitted) {
     return {
       ok: false,
       reason: from === to ? "conflict" : "invalid",
-      error: explainRefusal(from, to, fulfillmentType),
+      error: options.backwards
+        ? explainRevertRefusal(from, to, fulfillmentType)
+        : explainRefusal(from, to, fulfillmentType),
       order: clone(existing),
     };
   }
@@ -130,7 +157,14 @@ export async function transitionOrder(
     status: to,
     history: [
       ...existing.history,
-      { status: to, at, note: cancelling ? reason : undefined, by: "staff" },
+      {
+        status: to,
+        at,
+        note: cancelling || options.backwards ? reason : undefined,
+        // Only a correction records where it came from — see `OrderStatusEvent`.
+        ...(options.backwards ? { from } : {}),
+        by: "staff",
+      },
     ],
     // Recorded on the order itself as well as in the history, so the customer's
     // tracker and the staff screen read one field rather than each re-deriving
@@ -202,6 +236,29 @@ export async function advanceOrder(
   }
 
   return transitionOrder(reference, to, { expectedFrom });
+}
+
+/**
+ * Moves an order BACK to an earlier stage, because someone got it wrong.
+ *
+ * The only route to a backwards move in the application. It is a separate
+ * function rather than an option on `advanceOrder` for the same reason
+ * cancelling is: the interface that offers it, the confirmation it demands and
+ * the trail it leaves are all different, and a caller has to choose it
+ * deliberately.
+ *
+ * `expectedFrom` is REQUIRED here, unlike everywhere else. A correction is
+ * always about a specific wrong reading — "this says ready and it isn't" — so a
+ * request that cannot say what it is correcting is not a correction, it is a
+ * guess, and the kitchen board is up to fifteen seconds stale at any moment.
+ */
+export async function revertOrder(
+  reference: string,
+  to: OrderStatus,
+  expectedFrom: OrderStatus,
+  reason?: string,
+): Promise<OrderTransitionResult> {
+  return transitionOrder(reference, to, { reason, expectedFrom, backwards: true });
 }
 
 /**

@@ -3,8 +3,14 @@
 import { useState } from "react";
 import { StatusBadge } from "./StatusBadge";
 import { CancelOrderDialog } from "./CancelOrderDialog";
+import { RevertStatusDialog } from "./RevertStatusDialog";
 import { statusLabel, statusDescription, timelineFor } from "@/lib/order/status";
-import { advanceAction, canCancel, isTerminalStatus } from "@/lib/order/transitions";
+import {
+  advanceAction,
+  canCancel,
+  isTerminalStatus,
+  revertTargets,
+} from "@/lib/order/transitions";
 import { staffRefundNotice } from "@/lib/order/refund-copy";
 import { formatMoney, formatDelta } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
@@ -35,6 +41,7 @@ export function OrderDetail({
   status,
   onAdvance,
   onCancel,
+  onRevert,
   onClose,
 }: {
   order: Order;
@@ -42,10 +49,18 @@ export function OrderDetail({
   /** Resolves to an error message, or null when the move went through. */
   onAdvance: () => Promise<string | null>;
   onCancel: (reason: string) => Promise<string | null>;
+  /** The stage staff picked, plus their note. Only ever called after confirming. */
+  onRevert: (to: OrderStatus, note: string) => Promise<string | null>;
   onClose: () => void;
 }) {
   const isDelivery = order.fulfillment.type === "delivery";
   const [confirming, setConfirming] = useState(false);
+  /**
+   * The stage staff have asked to go back to, while they are being asked
+   * whether they meant it. Holding it here rather than acting on the press is
+   * what makes choosing a stage and performing the move two separate events.
+   */
+  const [reverting, setReverting] = useState<OrderStatus | null>(null);
   const [advancing, setAdvancing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -72,6 +87,8 @@ export function OrderDetail({
   const reached = cancelled ? stages.length : stages.indexOf(status);
 
   const refund = staffRefundNotice(order.refund);
+  /** Earlier stages this order can be corrected back to. Empty once cancelled. */
+  const back = revertTargets(status, order.fulfillment.type);
 
   const advance = async () => {
     setAdvancing(true);
@@ -195,8 +212,55 @@ export function OrderDetail({
             <p className="mt-1.5 text-xs text-ink-subtle">
               Moves this order to{" "}
               {statusLabel(next.to, order.fulfillment.type).toLowerCase()}. One step
-              at a time, and there is no way back.
+              at a time. Going back is possible, but it asks you to confirm.
             </p>
+          </div>
+        )}
+
+        {/*
+          Correcting a status that ran ahead of the food.
+
+          Deliberately not shaped like the button above: small, outlined,
+          under a label that says what it is for. Forward is the thing staff
+          do fifty times a shift and it stays one tap; this is the thing they
+          do when something has gone wrong, and it costs a confirmation.
+
+          The stages offered come from the machine, so this cannot present a
+          move the server would refuse — and pressing one opens a dialog. It
+          does not move the order.
+        */}
+        {back.length > 0 && (
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+              Correct the status
+            </p>
+            <p className="mt-1 text-xs text-ink-subtle">
+              Moves this order back. Asks you to confirm first, and the
+              customer&rsquo;s tracking updates to match.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {back.map((stage) => (
+                <button
+                  key={stage}
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setReverting(stage);
+                  }}
+                  className="inline-flex min-h-11 items-center rounded-control border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+                >
+                  <span aria-hidden="true" className="mr-1.5 text-ink-subtle">
+                    &larr;
+                  </span>
+                  {/* "Move back to…", not "Back to…": this card already has a
+                      "Back to queue" button that navigates, and two controls
+                      that read alike in a list of buttons is how the wrong one
+                      gets pressed. */}
+                  Move back to{" "}
+                  {statusLabel(stage, order.fulfillment.type).toLowerCase()}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -297,6 +361,21 @@ export function OrderDetail({
           </div>
         )}
       </div>
+
+      {reverting && (
+        <RevertStatusDialog
+          reference={order.reference}
+          from={status}
+          to={reverting}
+          fulfillmentType={order.fulfillment.type}
+          onConfirm={async (note) => {
+            const failure = await onRevert(reverting, note);
+            if (!failure) setReverting(null);
+            return failure;
+          }}
+          onClose={() => setReverting(null)}
+        />
+      )}
 
       {confirming && (
         <CancelOrderDialog
@@ -452,6 +531,14 @@ export function OrderDetail({
               <span className="font-medium text-ink">
                 {statusLabel(event.status, order.fulfillment.type)}
               </span>
+              {/* A correction says where it came from; a step forward doesn't
+                  need to, because the entry above it already says. */}
+              {event.from && (
+                <span className="text-warning">
+                  · moved back from{" "}
+                  {statusLabel(event.from, order.fulfillment.type).toLowerCase()}
+                </span>
+              )}
               <span className="text-ink-subtle">
                 {event.by === "staff" ? "· set by staff" : "· automatic"}
               </span>

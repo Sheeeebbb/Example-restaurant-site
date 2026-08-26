@@ -310,6 +310,17 @@ export interface OrderStatusEvent {
   at: IsoDateTime;
   note?: string;
   /**
+   * Where the order was immediately before this event.
+   *
+   * Recorded only on a correction — a move BACK to an earlier stage. Forward
+   * steps do not carry it because the previous entry already says where the
+   * order was, and one step forward is the only thing it could have been. A
+   * correction is the case where that inference breaks: the trail would
+   * otherwise read as though the kitchen had simply started preparing again,
+   * with nothing to say an earlier reading had been wrong.
+   */
+  from?: OrderStatus;
+  /**
    * Who moved the order to this status.
    *
    * Once staff have touched an order, the customer-facing tracker stops
