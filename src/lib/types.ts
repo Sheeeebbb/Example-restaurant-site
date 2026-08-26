@@ -239,6 +239,47 @@ export interface PaymentResult {
   failureMessage?: string;
 }
 
+/**
+ * Where a refund has got to.
+ *
+ * Three of these four come from the payment provider and mean exactly what the
+ * provider said. Nothing in this application may set `succeeded` on its own —
+ * a refund is money leaving a merchant account, and only the party that moves
+ * it can report that it moved.
+ *
+ *   pending     asked for, not yet confirmed. The honest state between sending
+ *               the request and hearing back, and where a refund stays if the
+ *               provider takes days to settle it.
+ *   succeeded   the provider confirmed it.
+ *   failed      the provider refused it, or could not be reached. Staff have to
+ *               deal with this by hand; the customer must not be told their
+ *               money is on its way.
+ *   notRequired our own bookkeeping, not a claim about the provider: this order
+ *               never had a successful charge, so there is nothing to send back.
+ */
+export type RefundStatus = "pending" | "succeeded" | "failed" | "notRequired";
+
+export interface RefundResult {
+  /** The provider that was asked. Matches `PaymentResult.provider`. */
+  provider: string;
+  status: RefundStatus;
+  /**
+   * Provider-side refund identifier — a Stripe `re_…` once Stripe is wired up.
+   *
+   * Absent until there is one: a refund that failed before the provider created
+   * anything has no id, and inventing one would make the records lie.
+   */
+  reference?: string;
+  /** What was asked for, in cents. Normally the order total. */
+  amount: Cents;
+  /** When this application sent the request. */
+  initiatedAt: IsoDateTime;
+  /** When the provider confirmed or refused. Absent while still pending. */
+  settledAt?: IsoDateTime;
+  /** Why it failed, for staff. Never shown to the customer verbatim. */
+  failureMessage?: string;
+}
+
 /* ── Orders ───────────────────────────────────────────────────────────────── */
 
 /**
@@ -246,12 +287,14 @@ export interface PaymentResult {
  *
  * The allowed moves between these live in `lib/order/transitions.ts`, which is
  * the only place that decides what an order may do next. The short version:
- * `confirmed → preparing → ready → completed`, forwards only, with `cancelled`
- * reachable from any unfinished stage and leading nowhere.
  *
- * `outForDelivery` is retired — delivery and pickup now follow the same path —
- * but stays in the union so orders placed before that changed still type-check
- * and can still be finished.
+ *   delivery  confirmed → preparing → ready → outForDelivery → completed
+ *   pickup    confirmed → preparing → ready → completed
+ *
+ * Forwards only, one step at a time, with `cancelled` reachable from any
+ * unfinished stage and leading nowhere. `outForDelivery` is a delivery stage
+ * only — there is nothing to be out for on an order the customer is coming to
+ * collect.
  */
 export type OrderStatus =
   | "pending"
@@ -302,5 +345,15 @@ export interface Order {
   /** When the cancellation was recorded. Present only on a cancelled order. */
   cancelledAt?: IsoDateTime;
   payment: PaymentResult;
+  /**
+   * The refund raised when the order was cancelled, in whatever state it
+   * reached.
+   *
+   * Written by `transitionOrder` and nowhere else, from what the payment
+   * provider actually returned. Absent on any order that has not been
+   * cancelled, and on cancellations made before refunds existed — which is why
+   * every reader treats "no refund field" as "unknown", never as "none owed".
+   */
+  refund?: RefundResult;
   estimatedReadyAt: IsoDateTime;
 }

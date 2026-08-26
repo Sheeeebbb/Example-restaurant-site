@@ -10,7 +10,7 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 346 unit tests, including regressions for every defect found in QA
+npm test         # 376 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -153,7 +153,20 @@ The tracking timeline computes its stage from `createdAt` and
 `estimatedReadyAt` rather than counting up from page load. A timer would reset
 on every refresh — customers would watch their order slide back to "received"
 each time they reloaded. Deriving it means the same moment always yields the
-same stage.
+same stage. Once staff touch an order, the simulation stops and what the kitchen
+said wins.
+
+The stages themselves are one state machine (`lib/order/transitions.ts`), and
+delivery and collection part company at the pass:
+
+```
+delivery  Order received → Preparing → Ready → Out for delivery → Delivered
+pickup    Order received → Preparing → Ready → Collected
+```
+
+Forwards only, one step at a time, no skipping — a delivery cannot arrive
+without having left. Cancellation is not a stage on either path; it is a
+separate edge from any unfinished status, and it leads nowhere.
 
 ### 5c. The staff gate is mocked, in one place
 
@@ -198,6 +211,36 @@ never opens, were accepted and paid for with nobody there to cook them.
 notes to `RESTAURANT.ordering.maxNoteLength`. A `maxLength` on an input is a
 courtesy to the customer; these are the actual limits. The API previously
 accepted and stored a 5,000-character name.
+
+### 5g. Cancelling an order refunds it, and says only what is true
+
+`transitionOrder` is the one place an order can be cancelled, so it is the one
+place a refund is raised — there is no path to a cancelled order that skips the
+money. The order is written as cancelled **first**, with the refund marked
+`pending`, and only then is the provider called: a gateway having a bad
+afternoon must not leave the kitchen cooking food nobody is coming for.
+
+The refund goes through the same seam as the charge — `PaymentProvider.
+refundPayment`, which a Stripe implementation fulfils with `refunds.create`.
+`succeeded` can only come from the provider. Nothing in this application sets
+it, so nothing can tell a customer their money is on its way because a field
+was assigned:
+
+| state | what the customer is told |
+| --- | --- |
+| `pending` | "Your refund has been initiated." |
+| `succeeded` | "Your refund has been completed." |
+| `failed` | "We couldn't process your refund automatically." — plus a staff warning marked **Action needed** |
+| `notRequired` | "Nothing was charged for this order." |
+
+Staff see the same state with the provider's refund and payment identifiers
+next to it, for reconciliation. The public status endpoint sends the state and
+the amount and nothing else — `customerRefundNotice` takes only a status, so
+leaking a provider id or a staff-facing failure message into customer copy does
+not type-check.
+
+`MOCK_REFUND_OUTCOME=pending|failed` forces the mock's answer, so the failure
+and pending screens can be seen in a browser rather than only asserted in tests.
 
 ### 6. Cart lines are content-addressed
 

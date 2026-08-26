@@ -5,6 +5,7 @@ import { StatusBadge } from "./StatusBadge";
 import { CancelOrderDialog } from "./CancelOrderDialog";
 import { statusLabel, statusDescription, timelineFor } from "@/lib/order/status";
 import { advanceAction, canCancel, isTerminalStatus } from "@/lib/order/transitions";
+import { staffRefundNotice } from "@/lib/order/refund-copy";
 import { formatMoney, formatDelta } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -13,7 +14,8 @@ import type { Order, OrderStatus } from "@/lib/types";
  * One order, in full, with the controls to move it along.
  *
  * There is exactly one progression control, and it is whatever this order can
- * do next — "Start preparing", then "Mark ready", then "Mark delivered". The
+ * do next — "Start preparing", "Mark ready", "Send out for delivery", "Mark
+ * delivered", or the shorter path a collection follows instead. The
  * earlier stages are not offered and disabled; they are not offered at all,
  * because an order cannot go back to them and a greyed-out row of the past is
  * just clutter on a kitchen screen. A strip above the button shows where the
@@ -60,7 +62,7 @@ export function OrderDetail({
    * after a cancellation reads as though the food is still coming, which is
    * precisely the contradiction this work exists to remove.
    */
-  const allStages = timelineFor();
+  const allStages = timelineFor(order.fulfillment.type);
   const stages = cancelled
     ? allStages.filter((stage) =>
         order.history.some((event) => event.status === stage),
@@ -68,6 +70,8 @@ export function OrderDetail({
     : allStages;
   // Everything shown on a cancelled order is behind it; otherwise, where it is.
   const reached = cancelled ? stages.length : stages.indexOf(status);
+
+  const refund = staffRefundNotice(order.refund);
 
   const advance = async () => {
     setAdvancing(true);
@@ -210,7 +214,8 @@ export function OrderDetail({
               Cancel order
             </button>
             <p className="mt-1.5 text-xs text-ink-subtle">
-              Asks for a reason, which the customer is shown. Can&rsquo;t be undone.
+              Asks for a reason, which the customer is shown, and refunds the
+              payment. Can&rsquo;t be undone.
             </p>
           </div>
         )}
@@ -225,12 +230,79 @@ export function OrderDetail({
             </p>
           </div>
         )}
+
+        {/*
+          The refund, on the same screen as the cancellation that caused it.
+
+          A failed refund is the one thing on this page that asks a person to
+          go and do something, so it is drawn as a warning and says so in
+          words — a status word in a muted row is how an unrefunded customer
+          goes unnoticed until they phone. The provider's own identifiers sit
+          here too, because reconciling this against a dashboard is exactly
+          the job, and nowhere else: the customer's page never sees them.
+        */}
+        {cancelled && (
+          <div
+            className={`mt-4 rounded-control border p-3 ${
+              refund.needsAttention
+                ? "border-warning bg-warning-soft"
+                : refund.tone === "good"
+                  ? "border-herb/40 bg-herb-soft"
+                  : "border-line bg-surface-sunken"
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink">
+                Refund
+              </p>
+              {refund.needsAttention && (
+                <span className="rounded-full bg-warning px-2 py-0.5 text-xs font-semibold text-on-warning">
+                  Action needed
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm font-semibold text-ink">
+              {refund.headline}
+              {order.refund && order.refund.status !== "notRequired" && (
+                <> · {formatMoney(order.refund.amount)}</>
+              )}
+            </p>
+            <p role={refund.needsAttention ? "alert" : undefined} className="mt-0.5 text-sm leading-relaxed text-ink-muted">
+              {refund.detail}
+            </p>
+            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-subtle">
+              <div className="flex gap-1.5">
+                <dt>Payment</dt>
+                <dd className="break-all font-medium text-ink-muted">
+                  {order.payment.reference}
+                </dd>
+              </div>
+              {order.refund?.reference && (
+                <div className="flex gap-1.5">
+                  <dt>Refund</dt>
+                  <dd className="break-all font-medium text-ink-muted">
+                    {order.refund.reference}
+                  </dd>
+                </div>
+              )}
+              {order.refund && (
+                <div className="flex gap-1.5">
+                  <dt>Initiated</dt>
+                  <dd className="font-medium text-ink-muted">
+                    {dateTime.format(new Date(order.refund.initiatedAt))}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
       </div>
 
       {confirming && (
         <CancelOrderDialog
           reference={order.reference}
           statusLabel={statusLabel(status, order.fulfillment.type)}
+          refundAmount={formatMoney(order.payment.amount)}
           onConfirm={async (reason) => {
             const failure = await onCancel(reason);
             if (!failure) setConfirming(false);

@@ -45,6 +45,18 @@ export async function GET(
       ? {
           cancellationReason: order.cancellationReason ?? null,
           cancelledAt: order.cancelledAt ?? null,
+          /*
+           * Where the customer's money is.
+           *
+           * The state and the amount, and deliberately nothing else — no
+           * provider refund id, no payment reference, no failure message.
+           * Those are for staff: an identifier is of no use to a customer,
+           * the failure text is written for whoever has to fix it, and this
+           * endpoint is reachable by anyone holding an order number.
+           */
+          refund: order.refund
+            ? { status: order.refund.status, amount: order.refund.amount }
+            : null,
         }
       : {}),
   });

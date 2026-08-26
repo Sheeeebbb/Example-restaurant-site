@@ -9,7 +9,8 @@ import { deriveStatus, statusLabel } from "@/lib/order/status";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
-import type { Order, OrderStatus } from "@/lib/types";
+import { customerRefundNotice } from "@/lib/order/refund-copy";
+import type { Order, OrderStatus, RefundStatus } from "@/lib/types";
 
 /**
  * Order confirmation and tracking.
@@ -50,6 +51,14 @@ export function OrderConfirmation({
   const [cancellation, setCancellation] = useState<{
     reason: string | null;
     at: string | null;
+    /**
+     * Where the refund got to, as the server reports it.
+     *
+     * Only ever what the payment provider actually said. The page has no
+     * fallback that assumes a refund succeeded, because a page that assumes
+     * that is the thing this must not do.
+     */
+    refund: { status: RefundStatus; amount: number } | null;
   } | null>(null);
 
   useEffect(() => {
@@ -86,6 +95,7 @@ export function OrderConfirmation({
           setByStaff: boolean;
           cancellationReason?: string | null;
           cancelledAt?: string | null;
+          refund?: { status: RefundStatus; amount: number } | null;
         };
         if (cancelled) return;
         if (body.setByStaff) setStaffStatus(body.status);
@@ -93,6 +103,7 @@ export function OrderConfirmation({
           setCancellation({
             reason: body.cancellationReason ?? null,
             at: body.cancelledAt ?? null,
+            refund: body.refund ?? null,
           });
         }
       } catch {
@@ -146,6 +157,7 @@ export function OrderConfirmation({
 
   const status = staffStatus ?? deriveStatus(order, now);
   const isCancelled = status === "cancelled";
+  const refundNotice = customerRefundNotice(cancellation?.refund ?? undefined);
   const isDelivery = order.fulfillment.type === "delivery";
   const readyAt = new Date(order.estimatedReadyAt);
 
@@ -215,6 +227,31 @@ export function OrderConfirmation({
             </div>
           )}
 
+          {/*
+            Where the money is.
+            
+            The second question anyone asks after "why", so it is answered in
+            the same breath rather than left to a phone call — and answered with
+            the state the payment provider actually reported. "Initiated" and
+            "completed" are different sentences here, and a refund that failed
+            says so plainly instead of borrowing either of them.
+          */}
+          <div
+            className={`mt-4 rounded-control border p-4 ${
+              refundNotice.tone === "warn"
+                ? "border-danger/40 bg-danger-soft"
+                : refundNotice.tone === "good"
+                  ? "border-herb/40 bg-herb-soft"
+                  : "border-warning/40 bg-surface"
+            }`}
+          >
+            <p className="text-sm font-semibold text-ink">Refund</p>
+            <p className="mt-1 font-medium text-ink">{refundNotice.headline}</p>
+            <p className="mt-1 leading-relaxed text-ink-muted">
+              {refundNotice.detail}
+            </p>
+          </div>
+
           <dl className="mt-8 grid gap-6 border-t border-warning/30 pt-6 sm:grid-cols-3">
             <div>
               <dt className="text-sm text-ink-muted">Order number</dt>
@@ -232,14 +269,20 @@ export function OrderConfirmation({
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-ink-muted">Anything charged</dt>
+              <dt className="text-sm text-ink-muted">
+                {cancellation?.refund?.status === "notRequired"
+                  ? "Charged"
+                  : "Refund"}
+              </dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
-                {formatMoney(order.totals.total)}
+                {formatMoney(
+                  cancellation?.refund?.amount ?? order.totals.total,
+                )}
               </dd>
               <dd className="text-sm text-ink-muted">
                 {order.payment.provider === "mock"
-                  ? "Test payment — nothing was charged"
-                  : "Contact us and we'll put it right"}
+                  ? "Test payment — no real money moved"
+                  : ""}
               </dd>
             </div>
           </dl>

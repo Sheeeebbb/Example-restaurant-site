@@ -28,12 +28,21 @@ const QUICK_REASONS = [
 export function CancelOrderDialog({
   reference,
   statusLabel,
+  refundAmount,
   onConfirm,
   onClose,
 }: {
   reference: string;
   /** Where the order stands now, so staff can see what they are ending. */
   statusLabel: string;
+  /**
+   * What will be sent back, already formatted.
+   *
+   * Named here because cancelling now moves money, and a confirmation dialog
+   * that does not mention the money is not a confirmation of what is about to
+   * happen.
+   */
+  refundAmount: string;
   onConfirm: (reason: string) => Promise<string | null>;
   onClose: () => void;
 }) {
@@ -91,7 +100,10 @@ export function CancelOrderDialog({
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
           This order is <span className="font-medium text-ink">{statusLabel}</span>.
-          Cancelling is final — it can&rsquo;t be reopened or moved on afterwards.
+          Cancelling is final — it can&rsquo;t be reopened or moved on afterwards
+          — and it refunds{" "}
+          <span className="font-medium text-ink">{refundAmount}</span> to the
+          customer straight away.
         </p>
 
         <label htmlFor="cancel-reason" className="mt-5 block text-sm font-medium text-ink">

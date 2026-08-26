@@ -293,10 +293,15 @@ export function OrdersBoard() {
       <p className="mt-8 text-xs leading-relaxed text-ink-subtle">
         Status set here replaces the simulated progress the customer sees on
         their tracking page. Orders move one step at a time and never backwards:{" "}
-        {timelineFor()
+        {timelineFor("delivery")
           .map((stage) => statusLabel(stage, "delivery"))
           .join(" → ")}
-        . Cancelling is separate, asks for a reason, and is final.
+        {" "}for delivery,{" "}
+        {timelineFor("pickup")
+          .map((stage) => statusLabel(stage, "pickup"))
+          .join(" → ")}
+        {" "}for collection. Cancelling is separate, asks for a reason, refunds
+        the payment, and is final.
       </p>
     </div>
   );

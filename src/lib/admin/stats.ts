@@ -36,8 +36,10 @@ export function calculateStats(
 ): DashboardStats {
   const today = orders.filter((order) => isSameDay(new Date(order.createdAt), now));
 
-  // Cancelled orders took no money, so they must not count toward revenue —
-  // but they did happen, so they stay in the order count.
+  // A cancelled order is refunded, so it earns the restaurant nothing and must
+  // not count toward revenue — but it did happen, so it stays in the order
+  // count. `awaitingDriver` below is still orders sitting cooked on the pass:
+  // one that has gone out is with a driver, not waiting for one.
   const earning = today.filter((order) => order.status !== "cancelled");
   const revenueToday = earning.reduce((total, order) => total + order.totals.total, 0);
 

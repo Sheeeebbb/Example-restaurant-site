@@ -193,6 +193,8 @@ export function toAddress(draft: OrderDraft): Address {
     houseNumber: draft.houseNumber.trim(),
     postalCode: normalizePostalCode(draft.postalCode),
     city: draft.city.trim(),
-    deliveryInstructions: draft.deliveryInstructions.trim() || undefined,
+    // Optional, and the only field here that can legitimately be absent: a
+    // request that omits it is well formed, so it must not crash the endpoint.
+    deliveryInstructions: draft.deliveryInstructions?.trim() || undefined,
   };
 }

@@ -12,9 +12,13 @@ import type { FulfillmentType, OrderStatus } from "@/lib/types";
  * Order progress.
  *
  * An ordered list, because that is what it is — and a screen reader then
- * announces "3 of 5" without any ARIA. The current stage carries a word
+ * announces "4 of 5" without any ARIA. The current stage carries a word
  * ("Now"), not just a colour, so the state survives being read aloud or seen by
  * someone who can't distinguish the accent.
+ *
+ * A delivery order has five stages and a collection has four; the difference is
+ * the drive, and the list comes from the state machine so it is always the one
+ * this order will actually follow.
  */
 export function OrderTimeline({
   status,
@@ -23,8 +27,8 @@ export function OrderTimeline({
   status: OrderStatus;
   fulfillmentType: FulfillmentType;
 }) {
-  const stages = timelineFor();
-  const current = timelineIndex(status);
+  const stages = timelineFor(fulfillmentType);
+  const current = timelineIndex(status, fulfillmentType);
 
   return (
     <ol className="space-y-0">

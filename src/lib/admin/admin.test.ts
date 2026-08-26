@@ -162,23 +162,66 @@ describe("order repository", () => {
     const place = async (reference: string, status: Order["status"] = "confirmed") =>
       saveOrder(order({ reference, status }));
 
-    it("walks the full path: received → preparing → ready → delivered", async () => {
+    it("walks the full delivery path: received → preparing → ready → out for delivery → delivered", async () => {
       await place("UT-WALK");
 
       const seen: string[] = ["confirmed"];
-      for (let step = 0; step < 3; step += 1) {
+      for (let step = 0; step < 4; step += 1) {
         const result = await advanceOrder("UT-WALK");
         expect(result.ok, `step ${step}`).toBe(true);
         if (result.ok) seen.push(result.order.status);
       }
 
+      const path = ["confirmed", "preparing", "ready", "outForDelivery", "completed"];
+      expect(seen).toEqual(path);
+      expect((await getOrder("UT-WALK"))?.history.map((event) => event.status)).toEqual(
+        path,
+      );
+      // One more press does nothing: the end is the end.
+      expect((await advanceOrder("UT-WALK")).ok).toBe(false);
+    });
+
+    it("walks a collection along its own, shorter path", async () => {
+      await saveOrder(
+        order({
+          reference: "UT-COLLECT",
+          fulfillment: { type: "pickup", timing: "asap" },
+        }),
+      );
+
+      const seen: string[] = ["confirmed"];
+      for (let step = 0; step < 3; step += 1) {
+        const result = await advanceOrder("UT-COLLECT");
+        expect(result.ok, `step ${step}`).toBe(true);
+        if (result.ok) seen.push(result.order.status);
+      }
+
       expect(seen).toEqual(["confirmed", "preparing", "ready", "completed"]);
-      expect((await getOrder("UT-WALK"))?.history.map((event) => event.status)).toEqual([
-        "confirmed",
-        "preparing",
-        "ready",
-        "completed",
-      ]);
+      expect((await advanceOrder("UT-COLLECT")).ok).toBe(false);
+    });
+
+    it("will not send a collection out for delivery, however it is asked", async () => {
+      await saveOrder(
+        order({
+          reference: "UT-NOVAN",
+          status: "ready",
+          fulfillment: { type: "pickup", timing: "asap" },
+        }),
+      );
+
+      const result = await transitionOrder("UT-NOVAN", "outForDelivery");
+      expect(result.ok).toBe(false);
+      expect(result.ok ? "" : result.error).toMatch(/isn't a stage of a collection/i);
+      expect((await getOrder("UT-NOVAN"))?.status).toBe("ready");
+    });
+
+    it("will not deliver an order that never left the restaurant", async () => {
+      await place("UT-TELEPORT", "ready");
+
+      const result = await transitionOrder("UT-TELEPORT", "completed");
+      expect(result.ok).toBe(false);
+      expect(result.ok ? "" : result.error).toMatch(/out for delivery/i);
+      expect((await getOrder("UT-TELEPORT"))?.status).toBe("ready");
     });
 
     it("refuses to skip a stage, however the request is phrased", async () => {
@@ -233,7 +276,7 @@ describe("order repository", () => {
 
   describe("cancellation", () => {
     it("can be done from any stage before the order finishes", async () => {
-      for (const from of ["confirmed", "preparing", "ready"] as const) {
+      for (const from of ["confirmed", "preparing", "ready", "outForDelivery"] as const) {
         const reference = `UT-C${from.slice(0, 3).toUpperCase()}`;
         await saveOrder(order({ reference, status: from }));
 
@@ -276,7 +319,13 @@ describe("order repository", () => {
       await saveOrder(order({ reference: "UT-GONE" }));
       await cancelOrder("UT-GONE", "Kitchen closing.");
 
-      for (const target of ["confirmed", "preparing", "ready", "completed"] as const) {
+      for (const target of [
+        "confirmed",
+        "preparing",
+        "ready",
+        "outForDelivery",
+        "completed",
+      ] as const) {
         const result = await transitionOrder("UT-GONE", target);
         expect(result.ok, target).toBe(false);
         expect(result.ok ? "" : result.error).toMatch(/cancelled/i);

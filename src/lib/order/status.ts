@@ -1,5 +1,5 @@
 import type { FulfillmentType, Order, OrderStatus } from "../types";
-import { ORDER_FLOW, nextStatus } from "./transitions";
+import { nextStatus, orderFlow } from "./transitions";
 
 /**
  * Simulated order progress.
@@ -18,12 +18,24 @@ import { ORDER_FLOW, nextStatus } from "./transitions";
 /**
  * Fractions of the order's total lead time at which each stage begins.
  *
- * The same fractions for delivery and pickup, because the stages are now the
- * same for both — see `ORDER_FLOW` in `transitions.ts`.
+ * A delivery order's lead time is prep PLUS travel (see `leadTimeMinutes`), so
+ * `estimatedReadyAt` is when the food reaches the customer, not when it leaves
+ * the kitchen. That last stretch is the drive — which is why the delivery
+ * schedule has a stage the pickup one does not, and why it starts near the end.
+ *
+ * The pickup fractions are untouched: nothing about collecting an order has
+ * changed.
  */
 const SCHEDULE = {
-  preparing: 0.08,
-  ready: 0.6,
+  delivery: {
+    preparing: 0.08,
+    ready: 0.6,
+    outForDelivery: 0.72,
+  },
+  pickup: {
+    preparing: 0.08,
+    ready: 0.6,
+  },
 } as const;
 
 export function deriveStatus(
@@ -52,8 +64,15 @@ export function deriveStatus(
   const progress = (now.getTime() - created) / lead;
 
   if (progress >= 1) return "completed";
-  if (progress >= SCHEDULE.ready) return "ready";
-  if (progress >= SCHEDULE.preparing) return "preparing";
+  if (order.fulfillment.type === "delivery") {
+    if (progress >= SCHEDULE.delivery.outForDelivery) return "outForDelivery";
+    if (progress >= SCHEDULE.delivery.ready) return "ready";
+    if (progress >= SCHEDULE.delivery.preparing) return "preparing";
+    return "confirmed";
+  }
+
+  if (progress >= SCHEDULE.pickup.ready) return "ready";
+  if (progress >= SCHEDULE.pickup.preparing) return "preparing";
   return "confirmed";
 }
 
@@ -61,14 +80,11 @@ export function deriveStatus(
  * The stages an order passes through, in order.
  *
  * Read straight off the state machine, so the customer's tracker and the
- * kitchen's buttons can never describe different journeys.
- *
- * Takes no fulfilment type, and that is the point: delivery and pickup follow
- * the same four stages now. Only the wording of the last one differs — and
- * naming it is `statusLabel`'s job, not this one's.
+ * kitchen's buttons can never describe different journeys — including the fact
+ * that a delivery has one stage more than a collection.
  */
-export function timelineFor(): OrderStatus[] {
-  return [...ORDER_FLOW];
+export function timelineFor(fulfillmentType: FulfillmentType): OrderStatus[] {
+  return [...orderFlow(fulfillmentType)];
 }
 
 /**
@@ -90,8 +106,6 @@ export function statusLabel(
     case "ready":
       return isDelivery ? "Ready" : "Ready for pickup";
     case "outForDelivery":
-      // A retired stage. Only orders placed before delivery and pickup were
-      // brought onto one path can still be sitting in it.
       return "Out for delivery";
     case "completed":
       return isDelivery ? "Delivered" : "Collected";
@@ -112,10 +126,10 @@ export function statusDescription(
       return "Everything is being cooked to order right now.";
     case "ready":
       return isDelivery
-        ? "Your food is ready and waiting for a driver."
+        ? "Your food is cooked and ready to leave the restaurant."
         : "Come and collect whenever you're ready.";
     case "outForDelivery":
-      return "On its way to you now.";
+      return "It has left the restaurant and is on its way to you now.";
     case "completed":
       return isDelivery ? "Delivered. Enjoy." : "Collected. Enjoy.";
     case "cancelled":
@@ -128,12 +142,16 @@ export function statusDescription(
 /**
  * How far through the timeline an order is, for progress indicators.
  *
- * −1 for a status that is not a stage — `cancelled`, or the retired
- * `outForDelivery`. Callers must handle that rather than lighting stage zero:
- * a cancelled order has not "reached order received", it has left the track.
+ * −1 for a status that is not a stage of THIS order's journey — `cancelled`,
+ * or `outForDelivery` on a collection. Callers must handle that rather than
+ * lighting stage zero: a cancelled order has not "reached order received", it
+ * has left the track.
  */
-export function timelineIndex(status: OrderStatus): number {
-  return timelineFor().indexOf(status);
+export function timelineIndex(
+  status: OrderStatus,
+  fulfillmentType: FulfillmentType,
+): number {
+  return timelineFor(fulfillmentType).indexOf(status);
 }
 
 /**
@@ -163,14 +181,23 @@ export function explainRefusal(
     return `This order is already ${fromLabel.toLowerCase()}, so it can't be moved again.`;
   }
 
-  const stages = timelineFor();
+  const stages = timelineFor(fulfillmentType);
   const fromStage = stages.indexOf(from);
   const toStage = stages.indexOf(to);
   if (fromStage !== -1 && toStage !== -1 && toStage < fromStage) {
     return `An order can't go back to ${toLabel} once it's ${fromLabel.toLowerCase()}.`;
   }
 
-  const step = nextStatus(from);
+  // A stage that isn't on this order's path at all — "out for delivery" on a
+  // collection — needs saying plainly, or the message reads as a scheduling
+  // quibble about something that is never going to happen.
+  if (toStage === -1 && to !== "cancelled") {
+    return `${toLabel[0].toUpperCase()}${toLabel.slice(1)} isn't a stage of a ${
+      fulfillmentType === "delivery" ? "delivery" : "collection"
+    } order.`;
+  }
+
+  const step = nextStatus(from, fulfillmentType);
   if (step) {
     return `${fromLabel} moves to ${statusLabel(step, fulfillmentType).toLowerCase()} next — one step at a time.`;
   }

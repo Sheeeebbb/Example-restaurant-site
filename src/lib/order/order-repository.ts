@@ -2,6 +2,7 @@ import type { Order, OrderStatus } from "../types";
 import { getStore } from "../server/store";
 import { canTransition, nextStatus } from "./transitions";
 import { explainRefusal, statusLabel } from "./status";
+import { openRefund, settleRefund } from "./refund";
 
 /**
  * Order persistence.
@@ -102,7 +103,7 @@ export async function transitionOrder(
     };
   }
 
-  if (!canTransition(from, to)) {
+  if (!canTransition(from, to, fulfillmentType)) {
     return {
       ok: false,
       reason: from === to ? "conflict" : "invalid",
@@ -122,21 +123,54 @@ export async function transitionOrder(
   }
 
   const at = new Date().toISOString();
+  const cancelling = to === "cancelled";
+
   const updated: Order = {
     ...existing,
     status: to,
     history: [
       ...existing.history,
-      { status: to, at, note: to === "cancelled" ? reason : undefined, by: "staff" },
+      { status: to, at, note: cancelling ? reason : undefined, by: "staff" },
     ],
     // Recorded on the order itself as well as in the history, so the customer's
     // tracker and the staff screen read one field rather than each re-deriving
     // the same answer by walking the trail.
-    ...(to === "cancelled" ? { cancellationReason: reason, cancelledAt: at } : {}),
+    ...(cancelling ? { cancellationReason: reason, cancelledAt: at } : {}),
   };
 
-  store.orders.set(reference, updated);
-  return { ok: true, order: clone(updated) };
+  if (!cancelling) {
+    store.orders.set(reference, updated);
+    return { ok: true, order: clone(updated) };
+  }
+
+  /*
+   * A cancellation is also a refund, and the two are committed in that order.
+   *
+   * The cancellation is written first, on its own, with the refund marked as
+   * asked-for and unconfirmed. Only then is the provider called. That ordering
+   * is deliberate: the customer's order is cancelled the moment staff say so,
+   * and a payment provider having a bad afternoon cannot undo that, leave the
+   * kitchen cooking food nobody is coming for, or make the staff member press
+   * the button again.
+   *
+   * What it costs is that the order is briefly readable in a state where the
+   * refund is pending — which is not a flaw, it is the honest description of
+   * that moment, and it is exactly what the order is left showing if the
+   * process dies mid-call.
+   */
+  const opened = openRefund(updated, at);
+  store.orders.set(reference, { ...updated, refund: opened });
+
+  const settled = await settleRefund(updated, opened);
+
+  // Re-read rather than writing `updated` back: minutes of wall-clock may have
+  // passed inside the provider call, and whatever else has happened to this
+  // order in the meantime is not ours to discard. Only the refund is.
+  const current = store.orders.get(reference) ?? updated;
+  const finished: Order = { ...current, refund: settled };
+  store.orders.set(reference, finished);
+
+  return { ok: true, order: clone(finished) };
 }
 
 /**
@@ -154,7 +188,7 @@ export async function advanceOrder(
     return { ok: false, reason: "not-found", error: "No such order." };
   }
 
-  const to = nextStatus(existing.status);
+  const to = nextStatus(existing.status, existing.fulfillment.type);
   if (!to) {
     return {
       ok: false,
@@ -170,7 +204,11 @@ export async function advanceOrder(
   return transitionOrder(reference, to, { expectedFrom });
 }
 
-/** Ends an order, with the reason the customer will be shown. */
+/**
+ * Ends an order, with the reason the customer will be shown, and starts the
+ * refund. There is no way to cancel without the refund being attempted — that
+ * is the whole reason this and `transitionOrder` are one code path.
+ */
 export async function cancelOrder(
   reference: string,
   reason: string,
