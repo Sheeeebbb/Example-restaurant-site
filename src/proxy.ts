@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { STAFF_COOKIE, isValidSession } from "@/lib/admin/auth";
+import { STAFF_COOKIE, looksLikeSessionToken } from "@/lib/admin/auth";
 
 /**
  * Guards the staff area.
@@ -9,12 +9,14 @@ import { STAFF_COOKIE, isValidSession } from "@/lib/admin/auth";
  * each handler remembering to check for itself — a route that forgets is how
  * admin areas leak.
  *
- * The check itself is a mock (see `lib/admin/auth.ts`). What is real is the
- * shape: one matcher, one gate, one function to replace.
+ * Two things happen here and they are not the same thing:
  *
- * Pages redirect to the sign-in screen so a person sees something useful; API
- * routes get a 401, because redirecting a fetch to an HTML page produces a
- * baffling parse error instead of an error message.
+ *   • Anyone with no plausible session is sent to the sign-in screen (or given
+ *     a 401 if they are a fetch, because redirecting one to an HTML page
+ *     produces a baffling parse error instead of an error message).
+ *   • Nothing else. Whether a signed-in person may do the thing they are asking
+ *     for is decided per action, by `requirePermission`, against permissions
+ *     resolved from the store — see `lib/staff/authorize.ts`.
  */
 /**
  * The two routes that must stay open, or there would be no way to obtain a
@@ -29,8 +31,23 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const authorised = isValidSession(request.cookies.get(STAFF_COOKIE)?.value);
-  if (authorised) return NextResponse.next();
+  /*
+   * A shape check, and deliberately nothing more.
+   *
+   * Proxy runs before the application and outside its memory, so it cannot look
+   * a token up, resolve an account or read a permission — and it must not
+   * pretend to. All it decides is whether to send someone who is plainly
+   * signed out to the sign-in page instead of to a 401 they cannot act on.
+   *
+   * The real gate is `requirePermission` in every protected handler, which
+   * resolves the token to an account and that account to its permissions on
+   * every single request. A forged cookie of the right shape gets past this
+   * line and then fails there, which is the correct division: this is
+   * navigation, that is authorisation.
+   */
+  if (looksLikeSessionToken(request.cookies.get(STAFF_COOKIE)?.value)) {
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith("/api/admin")) {
     return NextResponse.json(

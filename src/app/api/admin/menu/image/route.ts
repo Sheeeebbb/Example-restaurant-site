@@ -7,13 +7,14 @@ import {
   type AllowedImageType,
 } from "@/lib/media/image-validation";
 import { getImageStorageProvider } from "@/lib/media/image-storage";
+import { requirePermission } from "@/lib/staff/authorize";
 
 /**
  * Dish photograph upload.
  *
- * Sits under `/api/admin`, so `proxy.ts` has already required a staff session
- * before this runs — the guard is one matcher in one file rather than a check
- * each handler has to remember.
+ * Requires `menu.manage_images`. Uploading is separated from editing a dish
+ * because it is the one staff action that writes a file the public will fetch,
+ * and a role can reasonably be allowed to correct a price without that.
  *
  * Everything the browser said about the file is re-checked here, and then the
  * file's own first bytes are read to find out what it actually is. `file.type`
@@ -33,6 +34,9 @@ import { getImageStorageProvider } from "@/lib/media/image-storage";
 const ENVELOPE_SLACK = 512 * 1024;
 
 export async function POST(request: Request) {
+  const auth = await requirePermission("menu.manage_images");
+  if (!auth.ok) return auth.response;
+
   /*
    * Length first, before a byte of the body is read. `formData()` refuses an
    * oversized body itself, but it refuses it as an unreadable request — which

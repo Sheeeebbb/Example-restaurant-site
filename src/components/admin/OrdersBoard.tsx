@@ -35,12 +35,29 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-export function OrdersBoard() {
+export function OrdersBoard({
+  permissions,
+  actorId,
+}: {
+  /**
+   * What this person's roles allow, resolved on the server.
+   *
+   * Handed down so the board draws only the controls that would work. It is
+   * advisory in the strict sense: the endpoint behind every one of these
+   * re-derives the same permissions from the session cookie and refuses
+   * independently, so editing this array in a debugger buys a button and a 403.
+   */
+  permissions: string[];
+  actorId: string;
+}) {
+  const held = new Set(permissions);
   const router = useRouter();
   const searchParams = useSearchParams();
   const selected = searchParams.get("order");
 
   const [orders, setOrders] = useState<Order[]>([]);
+  /** Which driver is on which delivery, resolved server-side. Names only. */
+  const [assignees, setAssignees] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
@@ -62,9 +79,13 @@ export function OrdersBoard() {
     try {
       const response = await fetch("/api/admin/orders", { cache: "no-store" });
       if (!response.ok) throw new Error("failed");
-      const body = (await response.json()) as { orders: Order[] };
+      const body = (await response.json()) as {
+        orders: Order[];
+        assignees?: Record<string, string>;
+      };
       if (mutations.current !== startedAt) return; // superseded
       setOrders(body.orders);
+      if (body.assignees) setAssignees(body.assignees);
       setError(null);
     } catch {
       setError("Couldn't reach the order service.");
@@ -282,6 +303,13 @@ export function OrdersBoard() {
               onAdvance={() =>
                 act(selectedOrder.reference, { action: "advance" }, selectedStatus)
               }
+              assigneeName={
+                selectedOrder.assignedStaffId
+                  ? (assignees[selectedOrder.assignedStaffId] ?? "another driver")
+                  : null
+              }
+              permissions={held}
+              actorId={actorId}
               onRevert={(to, note) =>
                 act(
                   selectedOrder.reference,

@@ -27,11 +27,20 @@ const TAGS: DietaryTag[] = [
 export function MenuItemForm({
   item,
   categories,
+  canManageImages,
   onCancel,
   onSaved,
 }: {
   item: MenuItem | null;
   categories: Category[];
+  /**
+   * Whether to offer the photograph control.
+   *
+   * Uploading is its own permission because it is the one staff action that
+   * writes a file the public will fetch — a role can reasonably be trusted to
+   * correct a price without that. The upload endpoint checks it too.
+   */
+  canManageImages: boolean;
   onCancel: () => void;
   onSaved: (item: MenuItem, wasNew: boolean) => void;
 }) {
@@ -150,13 +159,20 @@ export function MenuItemForm({
         <div className="sm:col-span-2">
           <span className="text-sm font-medium text-ink">Photograph</span>
           <div className="mt-2">
-            <ImageField
-              currentSrc={item?.image.src ?? null}
-              dishName={name}
-              uploadedSrc={imageSrc}
-              onUploaded={setImageSrc}
-              onCleared={() => setImageSrc(null)}
-            />
+            {canManageImages ? (
+              <ImageField
+                currentSrc={item?.image.src ?? null}
+                dishName={name}
+                uploadedSrc={imageSrc}
+                onUploaded={setImageSrc}
+                onCleared={() => setImageSrc(null)}
+              />
+            ) : (
+              <p className="rounded-control border border-line bg-surface-sunken p-3 text-sm text-ink-muted">
+                The current photograph is kept. Changing it needs the
+                &ldquo;Manage dish photographs&rdquo; permission.
+              </p>
+            )}
           </div>
         </div>
 

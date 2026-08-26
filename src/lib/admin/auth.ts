@@ -1,56 +1,31 @@
 /**
- * MOCK STAFF AUTHENTICATION.
+ * The staff session cookie, and nothing else.
  *
- * ⚠️  THIS IS NOT SECURE AND IS NOT INTENDED TO BE. It exists so the admin area
- * has a real gate in a real place — one that genuinely blocks access, so the
- * shape of the app is right — while making no claim to protect anything.
+ * This file used to BE the authentication: a shared passcode and a cookie whose
+ * value was a constant, forgeable by anyone who read the source. That is gone.
+ * Real accounts, scrypt-hashed passwords, server-side sessions and role-based
+ * permissions now live in `lib/staff/`, and this is what is left — the name of
+ * the cookie and the rule for marking it `Secure`, both needed in places that
+ * have no business importing the whole staff system.
  *
- * What it actually does: compares a shared passcode, then sets a cookie whose
- * value is a constant. Anyone who can read this file can forge that cookie.
- * There is no user identity, no roles, no expiry beyond the cookie's, no
- * session revocation, and no rate limiting.
- *
- * ── What replacing it looks like ────────────────────────────────────────────
- * Every check funnels through `hasStaffSession()`, and every protected route is
- * matched in `proxy.ts`. A real implementation swaps this file for a session
- * library (per-user accounts, hashed credentials, signed and rotated session
- * tokens, an idle timeout) and adds a role check where the comment below marks
- * it. No route handler or page changes, because none of them do the check
- * themselves.
- *
- * Until that happens, this admin area must not be deployed anywhere public with
- * real customer data behind it.
+ * The old shared passcode was not discarded. On first boot it becomes the first
+ * password of a migrated manager account, so whoever had access before this
+ * change still has it. See migration 1 in `lib/staff/staff-repository.ts`.
  */
 
 export const STAFF_COOKIE = "urban-table-staff";
 
-/** A constant, not a token. Forgeable by design — see the warning above. */
-const SESSION_VALUE = "staff-demo-session";
-
 /**
- * The shared passcode. Overridable so a deployment isn't stuck with the
- * published default, but a shared secret is not authentication either way.
- */
-export function staffPasscode(): string {
-  return process.env.ADMIN_PASSCODE ?? "urbantable";
-}
-
-export function isValidPasscode(input: string): boolean {
-  return input.trim() === staffPasscode();
-}
-
-export function sessionCookieValue(): string {
-  return SESSION_VALUE;
-}
-
-/**
- * The single authorisation check in the application.
+ * The shape of a session token, for code that cannot reach the store.
  *
- * A real version resolves a user from the session and checks their role here —
- * `return user?.roles.includes("staff") ?? false`.
+ * `proxy.ts` runs before the application and cannot look a token up — it uses
+ * this to tell "no cookie at all" from "something that could be a session", so
+ * it can redirect a signed-out person to the sign-in page. It decides nothing.
+ * A string of the right shape is not a session; only `staffForToken` can say
+ * that, and every protected route asks it.
  */
-export function isValidSession(cookieValue: string | undefined): boolean {
-  return cookieValue === SESSION_VALUE;
+export function looksLikeSessionToken(value: string | undefined): boolean {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 }
 
 /**
@@ -70,7 +45,7 @@ export function isValidSession(cookieValue: string | undefined): boolean {
  * landed back on the sign-in screen with no error to explain it. Nothing is
  * given up by omitting the flag there: `Secure` protects a cookie from leaking
  * over a plaintext connection, and that connection is already plaintext — the
- * passcode crossed it a moment earlier.
+ * password crossed it a moment earlier.
  *
  * `x-forwarded-proto` is read first because a deployment behind a load balancer
  * or a CDN terminates TLS at the edge and speaks HTTP to the application, so the

@@ -8,6 +8,10 @@ import {
   type OrderTransitionResult,
 } from "@/lib/order/order-repository";
 import type { OrderStatus } from "@/lib/types";
+import { requireAnyPermission, currentActor } from "@/lib/staff/authorize";
+import { recordAudit } from "@/lib/staff/staff-repository";
+import { authorizeStatusChange } from "@/lib/order/order-permissions";
+import { nextStatus } from "@/lib/order/transitions";
 
 const KNOWN_STATUSES: OrderStatus[] = [
   "pending",
@@ -25,22 +29,31 @@ const MAX_REASON = 500;
 /**
  * Who may call any of this.
  *
- * Nobody, without a staff session: `src/proxy.ts` matches `/api/admin/:path*`
- * and returns 401 before this file runs. That is the application's single
- * authorisation gate, and it is deliberately not repeated here — a handler that
- * does its own check is a handler that can forget to.
+ * Nobody without a staff session, and then only the actions their roles allow.
+ * Every branch below resolves the caller's permissions from the session cookie
+ * — never from the request body — and asks `authorizeStatusChange`, which is
+ * the same function the staff screen asks when deciding what to draw. The
+ * screen asking is a convenience; this asking is the control.
  *
  * Which means the confirmation dialog in front of a backwards move is a
- * courtesy to the person pressing the button, and nothing else is resting on
- * it. What actually stops an unauthorised or accidental reversal is this route
- * being unreachable without a session, and a reversal requiring an action verb
- * of its own that no ordinary request can produce by mistake.
+ * courtesy to the person pressing the button, and nothing is resting on it.
+ * What stops an unauthorised reversal is `orders.status.backward` being
+ * checked here, on every call, including calls that never went near a browser.
  */
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ reference: string }> },
 ) {
+  /*
+   * Two ways to be allowed to read one order: running the floor, or being the
+   * driver who needs the address. `deliveries.view` is the narrower of the two
+   * and the delivery screens use it; what comes back is the same record either
+   * way, which is why a driver's role is worth keeping small.
+   */
+  const auth = await requireAnyPermission(["orders.view", "deliveries.view"]);
+  if (!auth.ok) return auth.response;
+
   const { reference } = await params;
   const order = await getOrder(reference);
   if (!order) {
@@ -83,7 +96,34 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ reference: string }> },
 ) {
+  const actor = await currentActor();
+  if (!actor) {
+    return NextResponse.json({ ok: false, error: "Sign in to continue." }, { status: 401 });
+  }
+
   const { reference } = await params;
+
+  /*
+   * The order is read before anything is decided, because authorisation
+   * depends on it: which stage it is at, whether the caller is the driver it
+   * is assigned to, and which way it is being moved.
+   */
+  const subject = await getOrder(reference);
+  if (!subject) {
+    return NextResponse.json({ ok: false, error: "No such order." }, { status: 404 });
+  }
+
+  const permissionActor = { id: actor.staff.id, permissions: actor.permissions };
+  const audit = { actorId: actor.staff.id, actorName: actor.staff.name };
+  const staffActor = { id: actor.staff.id, name: actor.staff.name };
+
+  /** Refuses with the permission that is missing, before the machine is asked. */
+  const denyStatus = (to: OrderStatus) => {
+    const decision = authorizeStatusChange({ order: subject, to, actor: permissionActor });
+    return decision.allowed
+      ? null
+      : NextResponse.json({ ok: false, error: decision.error }, { status: 403 });
+  };
 
   let body: {
     action?: string;
@@ -106,7 +146,17 @@ export async function PATCH(
   let result: OrderTransitionResult;
 
   if (body.action === "advance") {
-    result = await advanceOrder(reference, from);
+    /*
+     * `advance` names no destination, so the permission it needs is the one for
+     * whatever comes next on this order's own path — worked out here, from the
+     * order, not from anything the caller sent.
+     */
+    const to = nextStatus(subject.status, subject.fulfillment.type);
+    if (to) {
+      const denied = denyStatus(to);
+      if (denied) return denied;
+    }
+    result = await advanceOrder(reference, from, staffActor);
   } else if (body.action === "revert") {
     if (!body.to || !KNOWN_STATUSES.includes(body.to)) {
       return NextResponse.json(
@@ -130,7 +180,18 @@ export async function PATCH(
         { status: 422 },
       );
     }
-    result = await revertOrder(reference, body.to, from, reason);
+    const denied = denyStatus(body.to);
+    if (denied) return denied;
+
+    result = await revertOrder(reference, body.to, from, reason, staffActor);
+    if (result.ok) {
+      recordAudit({
+        ...audit,
+        action: "order.status_corrected",
+        subject: reference,
+        summary: `Moved ${reference} back from ${from} to ${body.to}.${reason ? ` Note: ${reason}` : ""}`,
+      });
+    }
   } else if (body.action === "cancel") {
     const reason = body.reason?.trim() ?? "";
     if (!reason) {
@@ -145,7 +206,18 @@ export async function PATCH(
         { status: 422 },
       );
     }
-    result = await cancelOrder(reference, reason, from);
+    const denied = denyStatus("cancelled");
+    if (denied) return denied;
+
+    result = await cancelOrder(reference, reason, from, staffActor);
+    if (result.ok) {
+      recordAudit({
+        ...audit,
+        action: "order.cancelled",
+        subject: reference,
+        summary: `Cancelled ${reference}: ${reason} Refund ${result.order.refund?.status ?? "not raised"}.`,
+      });
+    }
   } else if (body.status) {
     if (!KNOWN_STATUSES.includes(body.status)) {
       return NextResponse.json(
@@ -153,9 +225,13 @@ export async function PATCH(
         { status: 422 },
       );
     }
+    const denied = denyStatus(body.status);
+    if (denied) return denied;
+
     result = await transitionOrder(reference, body.status, {
       reason: body.reason,
       expectedFrom: from,
+      actor: staffActor,
     });
   } else {
     return NextResponse.json(

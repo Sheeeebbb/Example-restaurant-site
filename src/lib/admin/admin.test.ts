@@ -7,12 +7,7 @@ import {
   updateMenuItem,
   type MenuItemInput,
 } from "./menu-admin";
-import {
-  isValidPasscode,
-  isValidSession,
-  sessionCookieValue,
-  shouldUseSecureCookie,
-} from "./auth";
+import { looksLikeSessionToken, shouldUseSecureCookie } from "./auth";
 import { resetStore } from "../server/store";
 import { getMenuItemBySlug, getMenuItems } from "../data/repository";
 import {
@@ -491,18 +486,22 @@ describe("menu management", () => {
   });
 });
 
-describe("mock staff auth", () => {
-  it("accepts the configured passcode and rejects anything else", () => {
-    expect(isValidPasscode("urbantable")).toBe(true);
-    expect(isValidPasscode("  urbantable  ")).toBe(true);
-    expect(isValidPasscode("wrong")).toBe(false);
-    expect(isValidPasscode("")).toBe(false);
+describe("the session cookie's shape check", () => {
+  /*
+   * `proxy.ts` uses this to decide where to send someone, and NOTHING else
+   * uses it to decide anything. It cannot: a token of the right shape is not a
+   * session, and only `staffForToken` can say whether one is — which is why
+   * these tests assert the shape and say nothing about access.
+   */
+  it("recognises a real token's shape", () => {
+    expect(looksLikeSessionToken("a".repeat(64))).toBe(true);
+    expect(looksLikeSessionToken("0123456789abcdef".repeat(4))).toBe(true);
   });
 
-  it("accepts only its own session value", () => {
-    expect(isValidSession(sessionCookieValue())).toBe(true);
-    expect(isValidSession("anything-else")).toBe(false);
-    expect(isValidSession(undefined)).toBe(false);
+  it("rejects anything that could not be one", () => {
+    for (const value of [undefined, "", "staff-demo-session", "A".repeat(64), "a".repeat(63), "a".repeat(65)]) {
+      expect(looksLikeSessionToken(value), String(value)).toBe(false);
+    }
   });
 });
 

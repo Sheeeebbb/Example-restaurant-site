@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { RESTAURANT } from "@/lib/config/restaurant";
+import { currentActor } from "@/lib/staff/authorize";
+import { navigationFor } from "@/lib/staff/navigation";
 
 /**
  * The staff shell.
@@ -10,7 +12,18 @@ import { RESTAURANT } from "@/lib/config/restaurant";
  * footer entirely. Someone glancing at a screen in a busy kitchen should never
  * have to wonder which side of the app they are on.
  */
-export default function AdminLayout({ children }: LayoutProps<"/"> ) {
+/** Nothing here may be cached across staff: the navigation is per-person. */
+export const dynamic = "force-dynamic";
+
+export default async function AdminLayout({ children }: LayoutProps<"/"> ) {
+  /*
+   * Resolved once per request, from the session cookie.
+   *
+   * Null on the sign-in page, which is the one route in here that is reachable
+   * signed out — so the header renders without navigation rather than throwing.
+   */
+  const actor = await currentActor();
+
   return (
     <>
       <a
@@ -39,19 +52,26 @@ export default function AdminLayout({ children }: LayoutProps<"/"> ) {
               </span>
             </Link>
 
-            <AdminNav />
+            <AdminNav
+              links={actor ? navigationFor(actor) : []}
+              staffName={actor?.staff.name ?? null}
+            />
           </div>
         </div>
       </header>
 
       {/*
-        Standing reminder, not a dismissible toast: this build has mock
-        authentication and real-looking customer data, and nobody should be in
-        any doubt about that while looking at it.
+        Standing reminder, narrowed to what is still true.
+        
+        Authentication is no longer mocked — real accounts, hashed passwords,
+        server-side sessions and permissions checked on every request. The
+        orders are still simulated and the payments still fake, and that is
+        what this now says. A banner that overstates the problem gets ignored
+        as readily as one that understates it.
       */}
       <p className="bg-warning-soft px-4 py-2 text-center text-xs text-warning">
-        Demonstration staff area — authentication is mocked and orders are
-        simulated. Not for production use.
+        Demonstration data — orders are simulated and no real payments are
+        taken. Staff accounts and permissions are real.
       </p>
 
       <main id="admin-main" className="flex-1 bg-surface-sunken">

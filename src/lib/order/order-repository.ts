@@ -93,6 +93,15 @@ export async function transitionOrder(
      * tap on "Mark ready" must not quietly deliver the order.
      */
     expectedFrom?: OrderStatus;
+    /**
+     * Who is doing this, for the audit trail.
+     *
+     * Not an authorisation input — nothing here consults it to decide whether
+     * the move is allowed. Permission was settled before this was called, by
+     * `authorizeStatusChange` against permissions resolved from the session.
+     * This records it.
+     */
+    actor?: { id: string; name: string };
   } = {},
 ): Promise<OrderTransitionResult> {
   const store = getStore();
@@ -163,6 +172,9 @@ export async function transitionOrder(
         note: cancelling || options.backwards ? reason : undefined,
         // Only a correction records where it came from — see `OrderStatusEvent`.
         ...(options.backwards ? { from } : {}),
+        ...(options.actor
+          ? { actorId: options.actor.id, actorName: options.actor.name }
+          : {}),
         by: "staff",
       },
     ],
@@ -216,6 +228,7 @@ export async function transitionOrder(
 export async function advanceOrder(
   reference: string,
   expectedFrom?: OrderStatus,
+  actor?: { id: string; name: string },
 ): Promise<OrderTransitionResult> {
   const existing = getStore().orders.get(reference);
   if (!existing) {
@@ -235,7 +248,7 @@ export async function advanceOrder(
     };
   }
 
-  return transitionOrder(reference, to, { expectedFrom });
+  return transitionOrder(reference, to, { expectedFrom, actor });
 }
 
 /**
@@ -257,8 +270,14 @@ export async function revertOrder(
   to: OrderStatus,
   expectedFrom: OrderStatus,
   reason?: string,
+  actor?: { id: string; name: string },
 ): Promise<OrderTransitionResult> {
-  return transitionOrder(reference, to, { reason, expectedFrom, backwards: true });
+  return transitionOrder(reference, to, {
+    reason,
+    expectedFrom,
+    backwards: true,
+    actor,
+  });
 }
 
 /**
@@ -270,6 +289,139 @@ export async function cancelOrder(
   reference: string,
   reason: string,
   expectedFrom?: OrderStatus,
+  actor?: { id: string; name: string },
 ): Promise<OrderTransitionResult> {
-  return transitionOrder(reference, "cancelled", { reason, expectedFrom });
+  return transitionOrder(reference, "cancelled", { reason, expectedFrom, actor });
+}
+
+/* ── Delivery assignment ────────────────────────────────────────────────────*/
+
+/**
+ * A driver claims an order.
+ *
+ * The one operation in this application where two people can genuinely race:
+ * two drivers looking at the same "available" list, both pressing Accept.
+ * Exactly one must win, and the loser must be told the truth rather than shown
+ * a delivery they do not have.
+ *
+ * ── How the race is closed ─────────────────────────────────────────────────
+ * The read of `assignedStaffId` and the write that sets it happen in one
+ * synchronous block with no `await` between them. Node runs one request's
+ * synchronous code to completion before starting another's, so no second
+ * claim can observe the order as unassigned after the first has taken it. That
+ * is a real guarantee here, not an optimistic hope — but it is a guarantee of
+ * THIS store, and it is why the check-and-set is written as one statement
+ * rather than spread across helpers with awaits in between.
+ *
+ * Against a database the same shape becomes a conditional write —
+ * `UPDATE orders SET assigned_staff_id = $1 WHERE reference = $2 AND
+ * assigned_staff_id IS NULL` — and the loser is the one whose UPDATE reports
+ * zero rows. The important property in both is identical: whoever loses finds
+ * out from the write, never from a read taken beforehand.
+ */
+export type ClaimResult =
+  | { ok: true; order: Order }
+  | { ok: false; reason: "not-found" | "taken" | "not-deliverable"; error: string };
+
+export async function claimDelivery(
+  reference: string,
+  staffId: string,
+): Promise<ClaimResult> {
+  const store = getStore();
+
+  // ── begin critical section: no `await` until the write is done ──
+  const existing = store.orders.get(reference);
+  if (!existing) {
+    return { ok: false, reason: "not-found", error: "No such order." };
+  }
+  if (existing.fulfillment.type !== "delivery") {
+    return {
+      ok: false,
+      reason: "not-deliverable",
+      error: "That order is being collected from the counter, not delivered.",
+    };
+  }
+  if (existing.status === "cancelled" || existing.status === "completed") {
+    return {
+      ok: false,
+      reason: "not-deliverable",
+      error: "That order is finished. There is nothing to deliver.",
+    };
+  }
+  if (existing.assignedStaffId && existing.assignedStaffId !== staffId) {
+    return {
+      ok: false,
+      reason: "taken",
+      error: "Another driver got there first — this delivery is already assigned.",
+    };
+  }
+  if (existing.assignedStaffId === staffId) {
+    // Idempotent: a double tap is the same claim, not an error.
+    return { ok: true, order: clone(existing) };
+  }
+
+  const claimed: Order = {
+    ...existing,
+    assignedStaffId: staffId,
+    assignedAt: new Date().toISOString(),
+  };
+  store.orders.set(reference, claimed);
+  // ── end critical section ──
+
+  return { ok: true, order: clone(claimed) };
+}
+
+/** Hands a delivery back to the pool. Only ever the driver's own, or a manager's doing. */
+export async function releaseDelivery(reference: string): Promise<ClaimResult> {
+  const store = getStore();
+  const existing = store.orders.get(reference);
+  if (!existing) return { ok: false, reason: "not-found", error: "No such order." };
+
+  const released: Order = { ...existing };
+  delete released.assignedStaffId;
+  delete released.assignedAt;
+  store.orders.set(reference, released);
+  return { ok: true, order: clone(released) };
+}
+
+/**
+ * Asks the provider again for a refund that did not go through.
+ *
+ * Only for a cancelled order whose refund actually failed. A refund that
+ * succeeded is not retried — sending the money twice is worse than the problem
+ * — and an order that was never cancelled has nothing owed, so neither can be
+ * reached through here however the request is shaped.
+ *
+ * The retry keeps the original `initiatedAt`: the customer asked for their
+ * money back when the order was cancelled, not when someone got round to
+ * chasing it.
+ */
+export async function retryRefund(
+  reference: string,
+): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
+  const store = getStore();
+  const existing = store.orders.get(reference);
+  if (!existing) return { ok: false, error: "No such order." };
+
+  if (existing.status !== "cancelled") {
+    return {
+      ok: false,
+      error: "Only a cancelled order has a refund to retry. Cancel it if that is what you meant.",
+    };
+  }
+
+  const refund = existing.refund;
+  if (!refund || refund.status === "notRequired") {
+    return { ok: false, error: "No payment was captured for this order, so there is nothing to send back." };
+  }
+  if (refund.status === "succeeded") {
+    return { ok: false, error: "That refund already went through. Retrying it would pay the customer twice." };
+  }
+
+  const settled = await settleRefund(existing, { ...refund, status: "pending" });
+
+  const current = store.orders.get(reference) ?? existing;
+  const updated: Order = { ...current, refund: settled };
+  store.orders.set(reference, updated);
+  return { ok: true, order: clone(updated) };
 }

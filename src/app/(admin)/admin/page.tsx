@@ -5,6 +5,8 @@ import { listOrders } from "@/lib/order/order-repository";
 import { calculateStats } from "@/lib/admin/stats";
 import { deriveStatus, statusLabel } from "@/lib/order/status";
 import { formatMoney } from "@/lib/money";
+import { currentActor } from "@/lib/staff/authorize";
+import { navigationFor } from "@/lib/staff/navigation";
 
 export const metadata: Metadata = { title: "Dashboard · Staff" };
 
@@ -13,10 +15,64 @@ export const metadata: Metadata = { title: "Dashboard · Staff" };
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * The dashboard each person actually needs.
+ *
+ * Built from permissions rather than assembled once and then hidden from: the
+ * figures are only fetched if this account may see orders, the shortcuts are
+ * the pages their roles open, and a driver gets a link to their run rather than
+ * a row of empty manager cards.
+ *
+ * Someone whose roles allow nothing gets told so plainly, with who to ask —
+ * a blank screen would read as a broken deployment.
+ */
 export default async function AdminDashboardPage() {
-  const orders = await listOrders();
+  const actor = await currentActor();
+  if (!actor) return null; // proxy.ts has already redirected; nothing to draw.
+
+  const links = navigationFor(actor);
+  const canSeeOrders = actor.can("orders.view");
+
+  const orders = canSeeOrders ? await listOrders() : [];
   const stats = calculateStats(orders);
   const recent = orders.slice(0, 5);
+
+  const shortcuts = (
+    <nav aria-label="Your areas" className="mt-6 flex flex-wrap gap-2">
+      {links.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className="inline-flex min-h-11 items-center rounded-control border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+        >
+          {link.label}
+        </Link>
+      ))}
+    </nav>
+  );
+
+  if (!canSeeOrders) {
+    /*
+     * A dashboard for a role that cannot see the order queue.
+     *
+     * A driver, most often: they have a delivery board of their own and no
+     * business reading every customer's details. Showing them the manager's
+     * page with the numbers blanked out would be worse than showing them this.
+     */
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+          Hello, {actor.staff.name}
+        </h1>
+        <p className="mt-2 max-w-xl leading-relaxed text-ink-muted">
+          {links.length > 0
+            ? "Here is what your roles open. Everything else on this system is closed to your account."
+            : "Your account doesn't hold any roles yet, so there is nothing here for you to open. Ask a manager to assign you one."}
+        </p>
+        {links.length > 0 && shortcuts}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -36,6 +92,8 @@ export default async function AdminDashboardPage() {
           Manage orders
         </Link>
       </div>
+
+      {links.length > 1 && shortcuts}
 
       {/*
         Two-up from the smallest screen. Five full-width cards stacked meant a

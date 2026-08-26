@@ -3,13 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const LINKS = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/menu", label: "Menu" },
-];
-
-export function AdminNav() {
+/**
+ * The staff navigation.
+ *
+ * The links are handed in, already filtered to what this person's roles allow —
+ * see `lib/staff/navigation.ts`. This component chooses none of them, so there
+ * is no list of destinations in the client bundle to read off and no hidden
+ * link to un-hide. Every destination checks again on the server anyway.
+ */
+export function AdminNav({
+  links,
+  staffName,
+}: {
+  links: { href: string; label: string }[];
+  staffName: string | null;
+}) {
+  const LINKS = [{ href: "/admin", label: "Dashboard" }, ...links];
   const pathname = usePathname();
   const router = useRouter();
 
@@ -55,6 +64,11 @@ export function AdminNav() {
       </nav>
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
+        {staffName && (
+          <span className="hidden px-2 text-sm text-poster-muted sm:inline">
+            {staffName}
+          </span>
+        )}
         <Link
           href="/"
           className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-medium text-poster-muted transition-colors hover:text-poster-fg"

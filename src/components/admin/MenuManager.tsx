@@ -24,10 +24,27 @@ export function MenuManager({
   initialItems,
   categories,
   photoMap,
+  canCreate,
+  canEdit,
+  canDelete,
+  canManageImages,
 }: {
   initialItems: MenuItem[];
   categories: Category[];
   photoMap: Record<string, string | null>;
+  /*
+   * What this person's roles allow, resolved on the server and handed in.
+   *
+   * Used to decide which controls to draw — a role given only `menu.view` gets
+   * a readable menu with no buttons rather than buttons that fail. It is not
+   * the control: every endpoint behind these checks the same permission again,
+   * so a viewer who edits this component's props in the console gets a working
+   * button and a 403.
+   */
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageImages: boolean;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -110,6 +127,7 @@ export function MenuManager({
         <MenuItemForm
           item={editing}
           categories={categories}
+          canManageImages={canManageImages}
           onCancel={() => {
             setEditing(null);
             setCreating(false);
@@ -141,13 +159,15 @@ export function MenuManager({
             {unavailable > 0 && ` · ${unavailable} marked unavailable`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex min-h-11 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
-        >
-          Add a dish
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex min-h-11 items-center rounded-control bg-ember px-4 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
+          >
+            Add a dish
+          </button>
+        )}
       </div>
 
       {error && (
@@ -244,32 +264,41 @@ export function MenuManager({
                     </div>
                   ) : (
                     <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleAvailability(item)}
-                        disabled={busy === item.id}
-                        aria-pressed={!item.available}
-                        className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
-                      >
-                        {item.available ? "Mark unavailable" : "Mark available"}
-                        <span className="sr-only"> — {item.name}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditing(item)}
-                        className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
-                      >
-                        Edit
-                        <span className="sr-only"> {item.name}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingDelete(item.id)}
-                        className="min-h-11 rounded-control px-2 text-sm font-medium text-ink-muted transition-colors hover:text-danger"
-                      >
-                        Remove
-                        <span className="sr-only"> {item.name}</span>
-                      </button>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => toggleAvailability(item)}
+                          disabled={busy === item.id}
+                          aria-pressed={!item.available}
+                          className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                        >
+                          {item.available ? "Mark unavailable" : "Mark available"}
+                          <span className="sr-only"> — {item.name}</span>
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setEditing(item)}
+                          className="min-h-11 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+                        >
+                          Edit
+                          <span className="sr-only"> {item.name}</span>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDelete(item.id)}
+                          className="min-h-11 rounded-control px-2 text-sm font-medium text-ink-muted transition-colors hover:text-danger"
+                        >
+                          Remove
+                          <span className="sr-only"> {item.name}</span>
+                        </button>
+                      )}
+                      {!canEdit && !canDelete && (
+                        <span className="text-sm text-ink-subtle">View only</span>
+                      )}
                     </div>
                   )}
                 </li>

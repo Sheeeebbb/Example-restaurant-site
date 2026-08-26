@@ -355,6 +355,21 @@ export interface Order {
   cancellationReason?: string;
   /** When the cancellation was recorded. Present only on a cancelled order. */
   cancelledAt?: IsoDateTime;
+  /**
+   * The delivery driver who claimed this order.
+   *
+   * An id, not a copy of the person: their name is resolved when a screen needs
+   * it, so an order does not accumulate a second, stale record of who works
+   * here. Set by claiming and never cleared by a status change — a driver who
+   * has taken an order keeps it, including if the kitchen corrects the status
+   * backwards while they are still holding the bag.
+   *
+   * Its presence is also the lock: claiming checks and sets it in one
+   * synchronous step, so two drivers pressing at once cannot both win. See
+   * `claimDelivery`.
+   */
+  assignedStaffId?: string;
+  assignedAt?: IsoDateTime;
   payment: PaymentResult;
   /**
    * The refund raised when the order was cancelled, in whatever state it

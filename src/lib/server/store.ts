@@ -1,4 +1,5 @@
 import type { MenuItem, Order } from "../types";
+import type { AuditEntry, Role, StaffAccount, StaffSession } from "../staff/types";
 import { MENU_ITEMS } from "../data/menu";
 
 /**
@@ -43,6 +44,36 @@ interface ServerStore {
    * and are not in here — see `lib/media/image-storage.ts`.
    */
   images: Map<string, { data: Uint8Array; contentType: string }>;
+
+  /* ── Staff, roles and sessions ──────────────────────────────────────────
+   *
+   * Seeded and migrated by `lib/staff/staff-repository.ts` rather than here,
+   * because unlike the menu they are not a static fixture: they carry data a
+   * restaurant creates at runtime, and adding a permission to the catalogue
+   * later has to reach existing installs without wiping what they changed. The
+   * version below is what makes that possible.
+   */
+  roles: Map<string, Role>;
+  staff: Map<string, StaffAccount>;
+  /**
+   * Live sessions, by token.
+   *
+   * Server-side, so signing out or disabling an account takes effect at once
+   * and a client holding the cookie cannot outlive either. The client holds
+   * nothing but the random token — no role, no permissions, nothing it could
+   * usefully edit.
+   */
+  sessions: Map<string, StaffSession>;
+  /** Newest last. Bounded — see `recordAudit`. */
+  audit: AuditEntry[];
+  /**
+   * Which staff-data migrations have run.
+   *
+   * A real deployment reads this from a `schema_migrations` table; the shape of
+   * the problem is identical and so is the answer, which is why it is modelled
+   * rather than assumed away.
+   */
+  dataVersion: number;
 }
 
 const STORE_KEY = Symbol.for("urban-table.server-store");
@@ -56,6 +87,11 @@ function createStore(): ServerStore {
     // so a reset can restore it.
     menu: structuredClone(MENU_ITEMS),
     images: new Map(),
+    roles: new Map(),
+    staff: new Map(),
+    sessions: new Map(),
+    audit: [],
+    dataVersion: 0,
   };
 }
 

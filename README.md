@@ -10,7 +10,7 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 407 unit tests, including regressions for every defect found in QA
+npm test         # 476 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -185,21 +185,62 @@ optional note, so the audit trail distinguishes "the kitchen started cooking" fr
 cannot undo: the customer has been told and a refund has been raised, so
 reinstating is a new order, not a status fix.
 
-### 5c. The staff gate is mocked, in one place
+### 5c. Staff have accounts, roles carry permissions
 
-`/admin/*` and `/api/admin/*` are guarded by `src/proxy.ts` (Next 16 renamed
-Middleware to Proxy). Every check funnels through `hasStaffSession`, so no route
-handler does its own — a handler that forgets is how admin areas leak.
+Real authentication, and one rule underneath all of it:
 
-**The check itself is not secure and does not pretend to be.** It compares a
-shared passcode and sets a cookie whose value is a constant, forgeable by anyone
-who reads the source. There is no user identity, no roles, no revocation, no
-rate limiting. What is real is the *shape*: one matcher, one gate, one function
-to replace with a session library and a role check. Until that happens this
-admin area must not be deployed publicly with real customer data behind it.
+> **Users have roles. Roles contain permissions. Permissions decide what may
+> happen.**
 
-The banner across every staff page says the same thing, so nobody using it is in
-any doubt.
+Nothing in the application asks what role someone holds. Code asks whether they
+hold a *permission*; roles are bags of permissions a manager edits at runtime.
+That indirection is the whole design — a restaurant invents "Senior Kitchen
+Staff" or "Weekend Manager" by combining permissions differently, and no code
+changes.
+
+```
+cookie token  →  session  →  staff account  →  roles  →  permissions
+```
+
+Everything to the right of the cookie is resolved server-side, per request, from
+the store. The request carries an opaque 64-hex token and nothing else — no
+role, no permissions, no staff id — so there is nothing in it worth editing. A
+`"role": "manager"` field in a request body is read by nothing.
+
+| Piece | Where |
+| --- | --- |
+| Permission catalogue | `lib/staff/permissions.ts` — add an entry, it becomes assignable |
+| Roles, staff, sessions, migrations | `lib/staff/staff-repository.ts` |
+| The gate every route opens with | `lib/staff/authorize.ts` — `requirePermission` |
+| Which permission each order action needs | `lib/order/order-permissions.ts` |
+| Passwords | `lib/staff/password.ts` — scrypt, salted, parameters stored with the digest |
+
+**Authorisation is server-side, per action, always.** `proxy.ts` now only checks
+that a cookie *looks* like a token, so it can send a signed-out person to the
+sign-in page rather than a 401 they cannot act on. It decides nothing else; it
+runs outside the application's memory and cannot resolve an account. A test
+reads every file under `app/api/admin` and fails if one does not consult the
+authorisation module — "no handler can forget" is enforced, not hoped for.
+
+Hiding a button is a courtesy to the person, never a control. The staff screens
+call the same functions the routes call, so they avoid offering what would be
+refused; editing that state in a debugger buys a working button and a 403.
+
+**Three roles are seeded, and none of them is special.** Manager holds every
+permission in the catalogue; Kitchen Staff holds `orders.view` plus the two
+kitchen stages; Delivery Staff holds the four `deliveries.*` permissions. All
+three are ordinary rows a manager can edit.
+
+**Nobody can lock the restaurant out.** Every mutation that could remove access
+is simulated against the state it would produce and refused if a critical
+capability would end up held by nobody — disabling the last such account,
+moving it to a weaker role, emptying that role, or deleting it. The rule is
+about capabilities surviving, not about a role named "Manager", so a restaurant
+that renames or replaces it stays protected.
+
+**The old shared passcode was not discarded.** On first boot, migration 1 turns
+it into the first password of a named manager account, so whoever had access
+before still has it — now with an identity, a role, and an audit trail.
 
 ### 5d. An order reference does not unlock personal data
 
@@ -258,6 +299,18 @@ not type-check.
 
 `MOCK_REFUND_OUTCOME=pending|failed` forces the mock's answer, so the failure
 and pending screens can be seen in a browser rather than only asserted in tests.
+
+### 5h. Adding a permission later takes one line
+
+The catalogue is the extension point. `reports.view` or `discounts.manage` is an
+entry in `PERMISSION_CATALOGUE` plus the check where the feature lives — the
+role editor lists it automatically, because that screen has no list of
+permissions in it and fetches the catalogue instead.
+
+Existing roles do **not** gain a new permission automatically. A capability
+appearing in someone's hands because it was invented is how permission systems
+rot, so it is granted explicitly — in the role editor, or by a migration.
+`MIGRATIONS` in `staff-repository.ts` carries a worked example of the second.
 
 ### 6. Cart lines are content-addressed
 

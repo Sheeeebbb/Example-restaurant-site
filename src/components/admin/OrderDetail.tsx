@@ -12,6 +12,7 @@ import {
   revertTargets,
 } from "@/lib/order/transitions";
 import { staffRefundNotice } from "@/lib/order/refund-copy";
+import { authorizeStatusChange } from "@/lib/order/order-permissions";
 import { formatMoney, formatDelta } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -42,6 +43,9 @@ export function OrderDetail({
   onAdvance,
   onCancel,
   onRevert,
+  permissions,
+  actorId,
+  assigneeName,
   onClose,
 }: {
   order: Order;
@@ -51,6 +55,20 @@ export function OrderDetail({
   onCancel: (reason: string) => Promise<string | null>;
   /** The stage staff picked, plus their note. Only ever called after confirming. */
   onRevert: (to: OrderStatus, note: string) => Promise<string | null>;
+  /**
+   * What this person's roles allow, and who they are.
+   *
+   * Every control below is drawn only if the same function the server will
+   * apply says it would be allowed — `authorizeStatusChange`, asked here
+   * speculatively and there decisively. A kitchen role therefore sees "Start
+   * preparing" and "Mark ready" and no cancel button, not because this
+   * component knows what a kitchen is, but because those are the permissions
+   * on the account.
+   */
+  permissions: Set<string>;
+  actorId: string;
+  /** The driver carrying this order, if any. */
+  assigneeName: string | null;
   onClose: () => void;
 }) {
   const isDelivery = order.fulfillment.type === "delivery";
@@ -64,7 +82,14 @@ export function OrderDetail({
   const [advancing, setAdvancing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const next = advanceAction(status, order.fulfillment.type);
+  const permissionActor = { id: actorId, permissions };
+  const mayMoveTo = (to: OrderStatus) =>
+    authorizeStatusChange({ order: { ...order, status }, to, actor: permissionActor })
+      .allowed;
+
+  const nextAction = advanceAction(status, order.fulfillment.type);
+  /* The one forward control, and only if this person could actually take it. */
+  const next = nextAction && mayMoveTo(nextAction.to) ? nextAction : null;
   const finished = isTerminalStatus(status);
   const cancelled = status === "cancelled";
 
@@ -88,7 +113,7 @@ export function OrderDetail({
 
   const refund = staffRefundNotice(order.refund);
   /** Earlier stages this order can be corrected back to. Empty once cancelled. */
-  const back = revertTargets(status, order.fulfillment.type);
+  const back = revertTargets(status, order.fulfillment.type).filter(mayMoveTo);
 
   const advance = async () => {
     setAdvancing(true);
@@ -182,6 +207,11 @@ export function OrderDetail({
         <p className="mt-4 font-display text-lg font-semibold text-ink">
           {statusLabel(status, order.fulfillment.type)}
         </p>
+        {assigneeName && (
+          <p className="mt-2 inline-flex items-center rounded-full bg-surface-sunken px-2.5 py-1 text-xs font-medium text-ink">
+            Delivery accepted by {assigneeName}
+          </p>
+        )}
         <p role="status" className="mt-0.5 text-sm text-ink-muted">
           {finished
             ? cancelled
@@ -215,6 +245,14 @@ export function OrderDetail({
               at a time. Going back is possible, but it asks you to confirm.
             </p>
           </div>
+        )}
+
+        {!next && !finished && (
+          <p className="mt-4 rounded-control bg-surface-sunken p-3 text-sm text-ink-muted">
+            {nextAction
+              ? `Moving this order to ${statusLabel(nextAction.to, order.fulfillment.type).toLowerCase()} isn't part of your role.`
+              : "There is nothing further to do here."}
+          </p>
         )}
 
         {/*
@@ -268,7 +306,7 @@ export function OrderDetail({
           Separated by a rule, not just by colour: cancelling is not the
           quiet sibling of the button above, it is a different kind of act.
         */}
-        {canCancel(status) && (
+        {canCancel(status) && permissions.has("orders.cancel") && (
           <div className="mt-5 border-t border-line pt-4">
             <button
               type="button"
@@ -305,7 +343,7 @@ export function OrderDetail({
           here too, because reconciling this against a dashboard is exactly
           the job, and nowhere else: the customer's page never sees them.
         */}
-        {cancelled && (
+        {cancelled && permissions.has("refunds.view") && (
           <div
             className={`mt-4 rounded-control border p-3 ${
               refund.needsAttention
