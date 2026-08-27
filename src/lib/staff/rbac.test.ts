@@ -25,7 +25,13 @@ import {
   updateStaff,
   wouldLockOut,
 } from "./staff-repository";
-import { hashPassword, needsRehash, validatePassword, verifyPassword } from "./password";
+import {
+  PASSWORD_RULES,
+  hashPassword,
+  needsRehash,
+  validatePassword,
+  verifyPassword,
+} from "./password";
 import type { Role, StaffAccount } from "./types";
 
 const PASSWORD = "correct-horse-battery-staple";
@@ -162,8 +168,30 @@ describe("passwords", () => {
   });
 
   it("asks for length rather than punctuation", () => {
-    expect(validatePassword("short")).toMatch(/at least 12/i);
+    expect(validatePassword("short")).toMatch(/at least 8/i);
     expect(validatePassword("a-long-enough-passphrase")).toBeNull();
+  });
+
+  /*
+   * The boundary, exactly. Off-by-one here is the difference between the rule
+   * the interface promises and the rule the server applies.
+   */
+  it("draws the line at eight characters", () => {
+    expect(PASSWORD_RULES.minLength).toBe(8);
+    expect(validatePassword("a".repeat(7)), "7").not.toBeNull();
+    expect(validatePassword("a".repeat(8)), "8").toBeNull();
+    expect(validatePassword("a".repeat(9)), "9").toBeNull();
+  });
+
+  it("still refuses one longer than the store can take", () => {
+    expect(validatePassword("a".repeat(PASSWORD_RULES.maxLength + 1))).not.toBeNull();
+  });
+
+  it("hashes an eight-character password like any other", async () => {
+    const digest = await hashPassword("12345678");
+    expect(digest.startsWith("scrypt$")).toBe(true);
+    expect(await verifyPassword("12345678", digest)).toBe(true);
+    expect(await verifyPassword("1234567", digest)).toBe(false);
   });
 });
 

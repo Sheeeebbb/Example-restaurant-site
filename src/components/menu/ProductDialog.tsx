@@ -85,7 +85,17 @@ export function ProductDialog({
         event.preventDefault();
         onClose();
       }}
-      className="m-0 h-dvh max-h-none w-screen max-w-none bg-transparent p-0 text-ink backdrop:bg-ink/50 backdrop:backdrop-blur-sm"
+      /*
+       * `overflow-hidden` on the dialog itself, not only on the body.
+       *
+       * Locking the body stops the page behind from moving; this stops the
+       * dialog from becoming a second scroll container. Without it the panel
+       * can be carried off the top of the screen when the viewport shrinks —
+       * which on Android happens every time the URL bar slides away, changing
+       * what `dvh` means mid-gesture. The only thing that scrolls in here is
+       * the body below, and that is now true structurally.
+       */
+      className="m-0 h-dvh max-h-dvh w-screen max-w-none overflow-hidden bg-transparent p-0 text-ink backdrop:bg-ink/50 backdrop:backdrop-blur-sm"
     >
       {/*
         The panel sits inside a full-viewport flex box rather than being the
@@ -98,9 +108,48 @@ export function ProductDialog({
         }}
         className="flex h-full w-full items-end justify-center sm:items-center sm:p-6"
       >
-        <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-card border border-line bg-paper shadow-overlay sm:max-h-[88dvh] sm:max-w-2xl sm:rounded-card">
+        <div className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-card border border-line bg-paper shadow-overlay sm:max-h-[88dvh] sm:max-w-2xl sm:rounded-card">
+          {/*
+            The way out, pinned to the PANEL rather than to the content.
+
+            It used to sit inside the scrolling body, over the photograph — so
+            reading down to the sixth option group carried it 1,600px off the
+            top of the screen and left a customer with no way out but the
+            browser's back button. Which is also why this read as "the page is
+            scrolling": the thing that should have stayed still was moving.
+
+            Absolute against the panel, and a sibling of the scroll area rather
+            than a child of it, so no amount of scrolling can reach it. It
+            keeps its own background and border because once the photograph
+            has scrolled past it is floating over text.
+          */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-line bg-paper/90 text-ink shadow-card backdrop-blur-sm transition-colors hover:bg-surface-sunken"
+          >
+            <span className="sr-only">Close {item.name}</span>
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              aria-hidden="true"
+              className="h-5 w-5"
+            >
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
+
           {/* ── Scrolling body ─────────────────────────────────────────── */}
-          <div className="overflow-y-auto overscroll-contain">
+          {/*
+            `min-h-0` matters: a flex child's default `min-height: auto` refuses
+            to shrink below its content, so without it this box grows to fit
+            six option groups and pushes the footer — and the add button — off
+            the bottom of the panel instead of scrolling.
+          */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="relative">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-sunken sm:aspect-[16/9]">
                 <FoodImage
@@ -121,28 +170,6 @@ export function ProductDialog({
                 )}
               </div>
 
-              {/*
-                Sits over the image so the panel opens with the way out already
-                on screen, at a 44px target, on both platforms.
-              */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full border border-line bg-paper/90 text-ink shadow-card backdrop-blur-sm transition-colors hover:bg-surface-sunken"
-              >
-                <span className="sr-only">Close {item.name}</span>
-                <svg
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.8}
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                  className="h-5 w-5"
-                >
-                  <path d="m5 5 10 10M15 5 5 15" />
-                </svg>
-              </button>
             </div>
 
             <div className="px-4 py-5 sm:px-6 sm:py-6">

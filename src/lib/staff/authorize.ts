@@ -42,6 +42,15 @@ import type { PublicStaff } from "./types";
 export interface Actor {
   staff: PublicStaff;
   permissions: Set<string>;
+  /**
+   * The names of the roles this account holds, right now.
+   *
+   * Resolved here with the permissions, from the same store read, so anything
+   * writing an audit record can say "Mike Brown (Delivery Staff)" without a
+   * second lookup — and so what gets written is what was true at the moment of
+   * the action rather than whenever the record is later read.
+   */
+  roleNames: string[];
   /** Convenience: `actor.can("orders.cancel")`. */
   can: (permission: string) => boolean;
 }
@@ -60,10 +69,14 @@ export async function currentActor(): Promise<Actor | null> {
   const account = await staffForToken(token);
   if (!account) return null;
 
-  const permissions = resolvePermissions(account, getStore().roles);
+  const roles = getStore().roles;
+  const permissions = resolvePermissions(account, roles);
   return {
     staff: publicStaff(account),
     permissions,
+    roleNames: account.roleIds
+      .map((roleId) => roles.get(roleId)?.name)
+      .filter((name): name is string => Boolean(name)),
     can: (permission: string) => permissions.has(permission),
   };
 }

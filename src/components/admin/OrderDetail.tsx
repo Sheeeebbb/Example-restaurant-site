@@ -8,6 +8,7 @@ import { statusLabel, statusDescription, timelineFor } from "@/lib/order/status"
 import {
   advanceAction,
   canCancel,
+  isBackwards,
   isTerminalStatus,
   revertTargets,
 } from "@/lib/order/transitions";
@@ -82,6 +83,7 @@ export function OrderDetail({
   const [advancing, setAdvancing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const correctId = `correct-status-${order.reference}`;
   const permissionActor = { id: actorId, permissions };
   const mayMoveTo = (to: OrderStatus) =>
     authorizeStatusChange({ order: { ...order, status }, to, actor: permissionActor })
@@ -276,28 +278,48 @@ export function OrderDetail({
               Moves this order back. Asks you to confirm first, and the
               customer&rsquo;s tracking updates to match.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {back.map((stage) => (
-                <button
-                  key={stage}
-                  type="button"
-                  onClick={() => {
-                    setActionError(null);
-                    setReverting(stage);
-                  }}
-                  className="inline-flex min-h-11 items-center rounded-control border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
-                >
-                  <span aria-hidden="true" className="mr-1.5 text-ink-subtle">
-                    &larr;
-                  </span>
-                  {/* "Move back to…", not "Back to…": this card already has a
-                      "Back to queue" button that navigates, and two controls
-                      that read alike in a list of buttons is how the wrong one
-                      gets pressed. */}
-                  Move back to{" "}
-                  {statusLabel(stage, order.fulfillment.type).toLowerCase()}
-                </button>
-              ))}
+
+            {/*
+              One control, not a button per stage.
+              
+              A native <select>, so it works with a mouse, a keyboard and a
+              thumb without any of that being reimplemented — on a phone it
+              opens the platform's own picker, which is the largest and most
+              familiar touch target available to us.
+              
+              It lists the stages this order can ACTUALLY be corrected to,
+              filtered through the same machine and the same permission check
+              the server will apply. Stages that are not valid destinations are
+              absent rather than present-and-disabled: an option someone can
+              read, reach with the keyboard and not choose is a worse answer
+              than one that was never offered.
+              
+              Choosing does not change anything. It opens the confirmation, and
+              the value shown reflects what is being confirmed until they
+              either go through with it or back out — at which point it returns
+              to the placeholder, because nothing happened.
+            */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label htmlFor={correctId} className="sr-only">
+                Correct the status of {order.reference}
+              </label>
+              <select
+                id={correctId}
+                value={reverting ?? ""}
+                onChange={(event) => {
+                  const chosen = event.target.value as OrderStatus | "";
+                  setActionError(null);
+                  setReverting(chosen === "" ? null : chosen);
+                }}
+                className="min-h-11 min-w-[14rem] rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink"
+              >
+                <option value="">Select status…</option>
+                {back.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {statusLabel(stage, order.fulfillment.type)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         )}
@@ -557,32 +579,80 @@ export function OrderDetail({
         </section>
       </div>
 
-      {/* ── Audit trail ──────────────────────────────────────────────────── */}
+      {/* ── Status history ───────────────────────────────────────────────── */}
+      {/*
+        Every transition this order has been through, in order, append-only.
+        Nothing here overwrites: a correction adds a line, it does not edit the
+        line it disagrees with, so "Ready → Preparing → Ready" reads as the
+        three separate things that actually happened.
+
+        Each line stands on its own — where it came from, where it went, who
+        did it and when — rather than requiring the line above to be read
+        first. Names and roles are the ones recorded at the time, so a driver
+        promoted next month does not retroactively become a manager here.
+
+        Staff-facing only. The customer's tracker shows the status; who moved
+        it is an internal operational detail and stays inside this page.
+      */}
       <div className="border-t border-line p-5 sm:p-6">
-        <h4 className="text-sm font-semibold text-ink">History</h4>
-        <ol className="mt-3 space-y-1.5 text-sm">
-          {order.history.map((event, index) => (
-            <li key={`${event.at}-${index}`} className="flex flex-wrap gap-x-2 text-ink-muted">
-              <span className="tabular-nums text-ink-subtle">
-                {dateTime.format(new Date(event.at))}
-              </span>
-              <span className="font-medium text-ink">
-                {statusLabel(event.status, order.fulfillment.type)}
-              </span>
-              {/* A correction says where it came from; a step forward doesn't
-                  need to, because the entry above it already says. */}
-              {event.from && (
-                <span className="text-warning">
-                  · moved back from{" "}
-                  {statusLabel(event.from, order.fulfillment.type).toLowerCase()}
-                </span>
-              )}
-              <span className="text-ink-subtle">
-                {event.by === "staff" ? "· set by staff" : "· automatic"}
-              </span>
-              {event.note && <span className="w-full text-ink-subtle">{event.note}</span>}
-            </li>
-          ))}
+        <h4 className="text-sm font-semibold text-ink">Status history</h4>
+        <ol className="mt-3 space-y-3">
+          {order.history.map((event, index) => {
+            const corrected =
+              event.from &&
+              isBackwards(event.from, event.status, order.fulfillment.type);
+            return (
+              <li key={`${event.at}-${index}`} className="flex gap-3 text-sm">
+                <span
+                  aria-hidden="true"
+                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                    corrected ? "bg-warning" : "bg-herb"
+                  }`}
+                />
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">
+                    {event.from && (
+                      <span className="font-normal text-ink-muted">
+                        {statusLabel(event.from, order.fulfillment.type)}
+                        {/* The word before the arrow, not after it: a screen
+                            reader reads this in DOM order, and "Ready changed
+                            to Preparing" is a sentence where "Ready to
+                            Preparing" is not. */}
+                        <span className="sr-only"> changed to </span>
+                        <span aria-hidden="true"> &rarr; </span>
+                      </span>
+                    )}
+                    {statusLabel(event.status, order.fulfillment.type)}
+                    {corrected && (
+                      <span className="ml-2 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">
+                        Corrected
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-ink-muted">
+                    {corrected ? "Corrected by" : "Changed by"}:{" "}
+                    <span
+                      className="font-medium text-ink"
+                      /* The account id, for anyone reconciling this against
+                         the activity log. On the element rather than on the
+                         page, because a UUID beside every line is noise. */
+                      title={event.actorId ? `Staff ID ${event.actorId}` : undefined}
+                    >
+                      {event.actorName ?? "System"}
+                    </span>
+                    {event.actorRoles?.length ? ` (${event.actorRoles.join(", ")})` : ""}
+                    {" · "}
+                    <time dateTime={event.at} className="tabular-nums">
+                      {dateTime.format(new Date(event.at))}
+                    </time>
+                  </p>
+                  {event.note && (
+                    <p className="mt-0.5 text-ink-subtle">{event.note}</p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </div>
     </div>

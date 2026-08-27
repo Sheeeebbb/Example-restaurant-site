@@ -101,7 +101,7 @@ export async function transitionOrder(
      * `authorizeStatusChange` against permissions resolved from the session.
      * This records it.
      */
-    actor?: { id: string; name: string };
+    actor?: { id: string; name: string; roles?: string[] };
   } = {},
 ): Promise<OrderTransitionResult> {
   const store = getStore();
@@ -170,10 +170,23 @@ export async function transitionOrder(
         status: to,
         at,
         note: cancelling || options.backwards ? reason : undefined,
-        // Only a correction records where it came from — see `OrderStatusEvent`.
-        ...(options.backwards ? { from } : {}),
+        /*
+         * Where it came from, on every change — not only on corrections.
+         *
+         * Each line of the trail then reads on its own: "Ready → Preparing,
+         * by Sarah" rather than a bare status whose direction you have to work
+         * out from the line above. Which of them were corrections stays
+         * derivable from the two statuses.
+         */
+        from,
         ...(options.actor
-          ? { actorId: options.actor.id, actorName: options.actor.name }
+          ? {
+              actorId: options.actor.id,
+              actorName: options.actor.name,
+              ...(options.actor.roles?.length
+                ? { actorRoles: options.actor.roles }
+                : {}),
+            }
           : {}),
         by: "staff",
       },
@@ -228,7 +241,7 @@ export async function transitionOrder(
 export async function advanceOrder(
   reference: string,
   expectedFrom?: OrderStatus,
-  actor?: { id: string; name: string },
+  actor?: { id: string; name: string; roles?: string[] },
 ): Promise<OrderTransitionResult> {
   const existing = getStore().orders.get(reference);
   if (!existing) {
@@ -270,7 +283,7 @@ export async function revertOrder(
   to: OrderStatus,
   expectedFrom: OrderStatus,
   reason?: string,
-  actor?: { id: string; name: string },
+  actor?: { id: string; name: string; roles?: string[] },
 ): Promise<OrderTransitionResult> {
   return transitionOrder(reference, to, {
     reason,
@@ -289,7 +302,7 @@ export async function cancelOrder(
   reference: string,
   reason: string,
   expectedFrom?: OrderStatus,
-  actor?: { id: string; name: string },
+  actor?: { id: string; name: string; roles?: string[] },
 ): Promise<OrderTransitionResult> {
   return transitionOrder(reference, "cancelled", { reason, expectedFrom, actor });
 }

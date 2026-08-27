@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PASSWORD_RULES } from "@/lib/staff/password-rules";
 import type { PublicStaff, Role } from "@/lib/staff/types";
 
 /**
@@ -221,7 +222,8 @@ export function StaffManager({
             className="mt-2 min-h-11 w-full max-w-sm rounded-control border border-line bg-surface px-3 text-sm text-ink"
           />
           <p className="mt-1 text-xs text-ink-subtle">
-            At least 12 characters. Stored as a scrypt digest and never shown
+            At least {PASSWORD_RULES.minLength} characters. Stored as a scrypt
+            digest and never shown
             again — if it is forgotten, set a new one.
             {editing && " Changing it signs them out everywhere."}
           </p>

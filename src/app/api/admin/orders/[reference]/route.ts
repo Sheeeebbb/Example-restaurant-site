@@ -115,7 +115,18 @@ export async function PATCH(
 
   const permissionActor = { id: actor.staff.id, permissions: actor.permissions };
   const audit = { actorId: actor.staff.id, actorName: actor.staff.name };
-  const staffActor = { id: actor.staff.id, name: actor.staff.name };
+  /*
+   * Who the server says this is.
+   *
+   * Resolved from the session cookie by `currentActor`, never from the request.
+   * A body carrying `"changedBy": "John Smith"` is read by nothing — there is
+   * no code path that takes an identity from a caller.
+   */
+  const staffActor = {
+    id: actor.staff.id,
+    name: actor.staff.name,
+    roles: actor.roleNames,
+  };
 
   /** Refuses with the permission that is missing, before the machine is asked. */
   const denyStatus = (to: OrderStatus) => {

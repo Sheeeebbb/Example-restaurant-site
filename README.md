@@ -10,7 +10,7 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 476 unit tests, including regressions for every defect found in QA
+npm test         # 481 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -179,11 +179,25 @@ button or old client can produce by accident. The confirmation dialog in front
 of it is a courtesy to the person pressing the button; `src/proxy.ts` is what
 makes the route unreachable without a staff session.
 
-A correction records where it came from (`OrderStatusEvent.from`) and an
-optional note, so the audit trail distinguishes "the kitchen started cooking" from
-"someone had marked this wrong". Cancellation is the one thing a correction
-cannot undo: the customer has been told and a refund has been raised, so
-reinstating is a new order, not a status fix.
+Corrections are chosen from a single `<select>` listing the stages this order
+can actually be moved back to — resolved through the same machine and the same
+permission check the server applies, so nothing is offered that would be
+refused, and nothing is offered disabled. Choosing opens the confirmation;
+only confirming writes.
+
+**Every status change a person makes is recorded**, append-only, on
+`Order.history`: the previous status, the new one, the staff account and its
+name and roles as they were at the time, the timestamp, and the note if there
+was one. The identity comes from the session — `currentActor` — and never from
+the request, so `"changedBy": "John Smith"` in a body is a field nothing reads.
+Corrections are not a separate log; they are entries in the same trail, and
+which ones they are stays derivable from the two statuses. Staff see it under
+**Status history** on the order; the customer's tracker shows the status and
+names nobody.
+
+Cancellation is the one thing a correction cannot undo: the customer has been
+told and a refund has been raised, so reinstating is a new order, not a status
+fix.
 
 ### 5c. Staff have accounts, roles carry permissions
 

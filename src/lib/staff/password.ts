@@ -103,21 +103,10 @@ export function needsRehash(stored: string): boolean {
   return Number(parts[1]) < PARAMS.N;
 }
 
-/**
- * What a password has to be to be accepted.
- *
- * Length over composition rules: a 12-character passphrase a kitchen can
- * remember beats an 8-character one with a symbol in it that ends up on a
- * sticky note by the pass.
+/*
+ * The rule lives in `password-rules.ts`, which imports nothing, so the staff
+ * form can read the same minimum this server enforces without pulling
+ * `node:crypto` into the browser. Re-exported here so callers that already
+ * import from this module keep working.
  */
-export const PASSWORD_RULES = { minLength: 12, maxLength: 200 } as const;
-
-export function validatePassword(password: string): string | null {
-  if (password.length < PASSWORD_RULES.minLength) {
-    return `Use at least ${PASSWORD_RULES.minLength} characters — a short phrase is easier to remember and harder to guess.`;
-  }
-  if (password.length > PASSWORD_RULES.maxLength) {
-    return `Keep it under ${PASSWORD_RULES.maxLength} characters.`;
-  }
-  return null;
-}
+export { PASSWORD_RULES, validatePassword } from "./password-rules";

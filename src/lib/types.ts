@@ -312,14 +312,39 @@ export interface OrderStatusEvent {
   /**
    * Where the order was immediately before this event.
    *
-   * Recorded only on a correction — a move BACK to an earlier stage. Forward
-   * steps do not carry it because the previous entry already says where the
-   * order was, and one step forward is the only thing it could have been. A
-   * correction is the case where that inference breaks: the trail would
-   * otherwise read as though the kitchen had simply started preparing again,
-   * with nothing to say an earlier reading had been wrong.
+   * Recorded on every change a person makes, so each line of the trail is
+   * legible on its own — "Ready → Preparing" rather than a status that only
+   * means something once you have read the line above it and worked out which
+   * direction it went. Whether a change was a correction is then derivable
+   * (`isBackwards(from, status, type)`) rather than being a second field that
+   * could disagree with the first.
+   *
+   * Absent on the opening event, which had no previous status, and on the
+   * simulated progression, which nobody performed.
    */
   from?: OrderStatus;
+  /**
+   * The staff account that made this change, and their name at the time.
+   *
+   * Determined by the server from the session cookie — see `currentActor` —
+   * and never from anything the caller sent. There is no code path that takes
+   * an identity from a request body, so a client submitting
+   * `"changedBy": "John Smith"` is submitting a field nothing reads.
+   *
+   * The name is copied rather than looked up when the trail is read, so the
+   * record stays correct after someone leaves and their account is disabled.
+   * Absent on the simulated progression, which nobody performed.
+   */
+  actorId?: string;
+  actorName?: string;
+  /**
+   * The roles that account held when it did this.
+   *
+   * Copied for the same reason as the name: roles are edited at runtime, and a
+   * driver promoted to manager next month must not retroactively become a
+   * manager in the record of what they did last week.
+   */
+  actorRoles?: string[];
   /**
    * Who moved the order to this status.
    *

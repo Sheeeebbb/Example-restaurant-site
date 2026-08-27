@@ -20,6 +20,7 @@ import {
   transitionOrder,
 } from "../order/order-repository";
 import { deriveStatus } from "../order/status";
+import { isBackwards } from "../order/transitions";
 import type { Order } from "../types";
 
 const NOW = new Date(2026, 7, 22, 19, 0);
@@ -710,10 +711,55 @@ describe("correcting a status backwards", () => {
     expect((await getOrder("UT-QUIET"))?.history.at(-1)?.note).toBeUndefined();
   });
 
-  it("leaves a forward step unmarked, so the trail distinguishes the two", async () => {
+  it("records where it came from on a forward step too", async () => {
+    /*
+     * Every change a person makes carries its previous status, not only a
+     * correction — so each line of the trail reads on its own rather than
+     * needing the line above to make sense of it. Which of them were
+     * corrections stays derivable from the two statuses, so there is no second
+     * field that could disagree with the first.
+     */
     await at("UT-MARK", "confirmed");
     await advanceOrder("UT-MARK");
-    expect((await getOrder("UT-MARK"))?.history.at(-1)?.from).toBeUndefined();
+    const forward = (await getOrder("UT-MARK"))?.history.at(-1);
+    expect(forward).toMatchObject({ from: "confirmed", status: "preparing" });
+    expect(isBackwards(forward!.from!, forward!.status, "delivery")).toBe(false);
+
+    await revertOrder("UT-MARK", "confirmed", "preparing");
+    const backward = (await getOrder("UT-MARK"))?.history.at(-1);
+    expect(backward).toMatchObject({ from: "preparing", status: "confirmed" });
+    expect(isBackwards(backward!.from!, backward!.status, "delivery")).toBe(true);
+  });
+
+  it("records who did it, from what the caller passes as the actor", async () => {
+    /*
+     * The repository takes the actor as an argument; the ROUTE resolves it from
+     * the session and never from the request body. That split is why this test
+     * can pass an actor freely — it is not the thing under test here, and
+     * `rbac.test.ts` plus the HTTP suite cover the part that is.
+     */
+    await at("UT-WHO", "confirmed");
+    await advanceOrder("UT-WHO", undefined, {
+      id: "staff_1",
+      name: "John Smith",
+      roles: ["Kitchen Staff"],
+    });
+
+    expect((await getOrder("UT-WHO"))?.history.at(-1)).toMatchObject({
+      from: "confirmed",
+      status: "preparing",
+      actorId: "staff_1",
+      actorName: "John Smith",
+      actorRoles: ["Kitchen Staff"],
+      by: "staff",
+    });
+  });
+
+  it("leaves the opening event without a previous status or an actor", async () => {
+    await at("UT-FIRST", "confirmed");
+    const first = (await getOrder("UT-FIRST"))?.history[0];
+    expect(first?.from).toBeUndefined();
+    expect(first?.actorId).toBeUndefined();
   });
 
   it("refuses a correction aimed at a status the order has already left", async () => {
