@@ -357,9 +357,6 @@ export const PHOTO_BRIEFS: PhotoBrief[] = [
   brief("burrata-heirloom-tomato", "burrata-heirloom-tomato.jpg",
     "Whole burrata torn open among sliced heirloom tomatoes, basil and balsamic.",
     "overhead", ["burrata", "heirloom tomatoes", "basil", "aged balsamic"], ["any meat"]),
-  brief("hot-smoked-salmon-bowl", "hot-smoked-salmon-bowl.jpg",
-    "Rice bowl with flaked hot-smoked salmon, edamame, cucumber and avocado.",
-    "overhead", ["hot-smoked salmon", "brown rice", "edamame", "cucumber", "avocado"], []),
 
   /* Sides */
   brief("skin-on-fries", "skin-on-fries.jpg",

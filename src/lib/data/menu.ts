@@ -344,28 +344,6 @@ export const MENU_ITEMS: MenuItem[] = [
     kitchenMinutes: 7,
     optionGroups: [addProtein()],
   },
-  {
-    id: "itm-poke",
-    slug: "hot-smoked-salmon-bowl",
-    categoryId: "cat-salads",
-    name: "Hot-Smoked Salmon Bowl",
-    description:
-      "Hot-smoked salmon, brown rice, edamame, cucumber, avocado, yuzu dressing.",
-    basePrice: 1595,
-    image: { src: "/menu/hot-smoked-salmon-bowl.jpg", alt: "Salmon and rice bowl with avocado" },
-    tags: ["gluten-free"],
-    allergens: ["fish", "soya", "sesame"],
-    available: true,
-    featured: false,
-    kitchenMinutes: 9,
-    optionGroups: [
-      dressing([{ id: "opt-dressing-yuzu", name: "Yuzu" }]),
-      removals([
-        { id: "opt-no-edamame", name: "No edamame" },
-        { id: "opt-no-cucumber", name: "No cucumber" },
-      ]),
-    ],
-  },
 
   /* ── Sides ────────────────────────────────────────────────────────────── */
   {

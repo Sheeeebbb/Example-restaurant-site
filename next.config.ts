@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { allowedDevOrigins } from "./src/lib/config/dev-origins";
+import { securityHeaders } from "./src/lib/config/security-headers";
 
 const nextConfig: NextConfig = {
   /*
@@ -11,10 +12,33 @@ const nextConfig: NextConfig = {
    */
   allowedDevOrigins: allowedDevOrigins(),
 
+  /*
+   * `X-Powered-By: Next.js` names the framework and its presence to anyone
+   * scanning. It buys nothing and is one flag to turn off.
+   */
+  poweredByHeader: false,
+
+  /*
+   * Security headers on every response — CSP, nosniff, frame denial, referrer
+   * policy, and HSTS outside development. The policy and the reasoning behind
+   * each value live in src/lib/config/security-headers.ts.
+   *
+   * `/:path*` matches the root as well as every nested route, so this covers
+   * pages, API routes, and the static files under public/ and /_next/.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders(),
+      },
+    ];
+  },
+
   images: {
     /*
      * AVIF first, WebP second, original as the last resort. Food photography is
-     * the heaviest thing this site will serve — twenty-six dish photographs plus
+     * the heaviest thing this site will serve — twenty-five dish photographs plus
      * a hero — and AVIF typically lands around half the bytes of a comparable
      * JPEG at the sizes these cards use.
      */

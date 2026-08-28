@@ -4,7 +4,7 @@ Dish photographs live in this folder. **These are temporary stock photographs,
 not Urban Table's own.** They are here so the site can be judged with real food
 in it; every one of them is meant to be replaced by a proper shoot.
 
-Current state: **26 of 27 images present** (`npm run photos:check`).
+Current state: **26 of 26 images present** (`npm run photos:check`).
 
 ## Where they came from
 
@@ -39,7 +39,6 @@ These are usable but imperfect. Replace them first.
 
 | File | Why it is flagged |
 | --- | --- |
-| `hot-smoked-salmon-bowl.jpg` | **Missing.** The only salmon bowls available were raw poke. Hot-smoked salmon looks nothing like raw fish, so no photograph was used — the card renders the fallback tile instead. |
 | `halloumi-roasted-pepper.jpg` | Roasted peppers and rocket are clearly right; the cheese is not clearly identifiable as grilled halloumi. |
 | `superfood-quinoa-bowl.jpg` | Quinoa and vegetables, but no roast sweet potato, kale or pomegranate. |
 | `new-york-cheesecake.jpg` | Reads as cheesecake with berry compote, but set rather than dense-baked. |
