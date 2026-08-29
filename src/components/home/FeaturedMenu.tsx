@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
@@ -15,19 +16,20 @@ import type { MenuItem } from "@/lib/types";
  * of context and the page's primary colour, it reads as the obvious next step
  * rather than a footnote.
  */
-export function FeaturedMenu({
+export async function FeaturedMenu({
   items,
 }: {
   items: { item: MenuItem; photoSrc: string | null }[];
 }) {
+  const t = await getTranslations("home");
   return (
     <section aria-labelledby="featured-heading" className="bg-paper">
       <Container className="py-16 sm:py-24">
         <SectionHeading
           id="featured-heading"
-          eyebrow="Most popular"
-          title="Straight off the pass"
-          description="The dishes our regulars order again and again."
+          eyebrow={t("mostPopular")}
+          title={t("straightOffThePass")}
+          description={t("popularBody")}
         />
 
         <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -58,7 +60,7 @@ export function FeaturedMenu({
             size="lg"
             className="group mt-6 w-full justify-center text-base font-semibold shadow-card transition-shadow hover:shadow-raised sm:w-auto sm:px-8"
           >
-            View full menu
+            {t("viewFullMenu")}
             {/* Nudges forward on hover — a hint of direction, not an animation. */}
             <svg
               viewBox="0 0 20 20"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
 import { CategoryNav, type NavSection } from "@/components/menu/CategoryNav";
@@ -7,10 +8,13 @@ import { resolvePhoto } from "@/lib/data/photos";
 import { ServiceStatus } from "@/components/layout/ServiceStatus";
 import { RESTAURANT } from "@/lib/config/restaurant";
 
-export const metadata: Metadata = {
-  title: "Menu",
-  description: `Burgers, sandwiches, salads, sides and drinks at ${RESTAURANT.name}. Order for delivery or pickup.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("menu");
+  return {
+    title: t("title"),
+    description: `${t("lead")} ${RESTAURANT.name}.`,
+  };
+}
 
 /**
  * Rendered per request for the same reason as the product page: staff can
@@ -34,6 +38,7 @@ export const dynamic = "force-dynamic";
  * data.
  */
 export default async function MenuPage() {
+  const th = await getTranslations("menu");
   const categories = await getCategories();
   const items = await getMenuItems();
 
@@ -50,7 +55,7 @@ export default async function MenuPage() {
           {
             id: "cat-popular",
             name: "Popular",
-            description: "The dishes our regulars order again and again.",
+            description: th("popularBody"),
             items: popular,
           },
         ]
@@ -71,11 +76,10 @@ export default async function MenuPage() {
     <>
       <Container className="pb-8 pt-12 sm:pt-16">
         <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          Menu
+          {th("title")}
         </h1>
         <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-muted">
-          Everything is cooked to order. Tap any dish to see what is in it and
-          choose sizes, extras and sauces before adding it.
+          {th("leadLong")}
         </p>
         <ServiceStatus className="mt-5" />
       </Container>

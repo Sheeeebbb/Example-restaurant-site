@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
+
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -79,6 +82,10 @@ export function ProductCustomizer({
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [showErrors, setShowErrors] = useState(false);
+  const t = useTranslations("menu");
+  const tp = useTranslations("product");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, locale);
   const [added, setAdded] = useState(false);
 
   const unitPrice = unitPriceFor(item, selections);
@@ -153,6 +160,8 @@ export function ProductCustomizer({
         added={added}
         quantity={quantity}
         total={total}
+        t={tp}
+        money={money}
       />
     </button>
   );
@@ -165,7 +174,7 @@ export function ProductCustomizer({
           role="alert"
           className="mb-2 text-sm font-medium text-danger"
         >
-          Choose an option in every required section to continue.
+          {tp("completeRequired")}
         </p>
       )}
       {addButton}
@@ -245,23 +254,23 @@ export function ProductCustomizer({
       {/* ── Price breakdown ───────────────────────────────────────────────── */}
       <dl className="mt-6 space-y-1.5 text-sm">
         <div className="flex justify-between gap-4">
-          <dt className="text-ink-muted">Each</dt>
+          <dt className="text-ink-muted">{t("each")}</dt>
           <dd className="font-medium tabular-nums text-ink">
-            {formatMoney(unitPrice)}
+            {money(unitPrice)}
           </dd>
         </div>
         {unitPrice !== item.basePrice && (
           <div className="flex justify-between gap-4 text-ink-subtle">
-            <dt>Base {formatMoney(item.basePrice)} + options</dt>
+            <dt>{t("basePlusOptions", { price: money(item.basePrice) })}</dt>
             <dd className="tabular-nums">
-              {formatMoney(unitPrice - item.basePrice)}
+              {money(unitPrice - item.basePrice)}
             </dd>
           </div>
         )}
         <div className="flex justify-between gap-4 border-t border-line pt-2 text-base">
-          <dt className="font-semibold text-ink">Total</dt>
+          <dt className="font-semibold text-ink">{t("total")}</dt>
           <dd className="font-semibold tabular-nums text-ink">
-            {formatMoney(total)}
+            {money(total)}
           </dd>
         </div>
       </dl>
@@ -296,7 +305,7 @@ export function ProductCustomizer({
         and an icon, neither of which a screen reader announces on its own.
       */}
       <span role="status" aria-live="polite" className="sr-only">
-        {added ? `${item.name} added to cart` : ""}
+        {added ? tp("addedToCart", { item: item.name }) : ""}
       </span>
     </div>
   );
@@ -308,13 +317,17 @@ function AddLabel({
   added,
   quantity,
   total,
+  t,
+  money,
 }: {
   available: boolean;
   added: boolean;
   quantity: number;
   total: number;
+  t: (key: string, values?: Record<string, string | number>) => string;
+  money: (cents: number) => string;
 }) {
-  if (!available) return <>Currently unavailable</>;
+  if (!available) return <>{t("currentlyUnavailable")}</>;
 
   if (added) {
     return (
@@ -331,16 +344,21 @@ function AddLabel({
         >
           <path d="m4 10.5 4 4 8-9" />
         </svg>
-        Added
+        {t("added")}
       </span>
     );
   }
 
   return (
     <>
-      <span>Add {quantity > 1 ? `${quantity} ` : ""}to cart</span>
+      {/*
+        One plural-aware string, not "Add " + n + " to cart". Dutch puts the
+        number and the verb differently, and ICU plurals are what let each
+        language write its own whole sentence.
+      */}
+      <span>{t("addToCartWithQty", { count: quantity })}</span>
       <span aria-hidden="true">·</span>
-      <span className="tabular-nums">{formatMoney(total)}</span>
+      <span className="tabular-nums">{money(total)}</span>
     </>
   );
 }

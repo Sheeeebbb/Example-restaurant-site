@@ -9,6 +9,8 @@ import {
 } from "@/lib/fulfillment/scheduling";
 import { findZone } from "@/lib/fulfillment/delivery";
 import { RESTAURANT } from "@/lib/config/restaurant";
+import { useTranslations, useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
 
 /**
  * ASAP or a booked slot.
@@ -42,17 +44,21 @@ export function TimingPicker({ error }: { error: string | null }) {
   const setTiming = useCartStore((state) => state.setTiming);
   const setScheduledFor = useCartStore((state) => state.setScheduledFor);
 
-  const { days, readyLabel, acceptingNow } = useMemo(() => {
+  const t = useTranslations("timing");
+  const tc = useTranslations("checkout");
+  const locale = useLocale() as Locale;
+
+  const { days, readyMinutes, acceptingNow } = useMemo(() => {
     const now = new Date();
     const zone = fulfillmentType === "delivery" ? findZone(postalCode) : null;
     const ready = earliestReadyTime(now, fulfillmentType, zone);
-    const minutes = Math.round((ready.getTime() - now.getTime()) / 60000);
     return {
-      days: generateSlots(now, fulfillmentType, zone),
-      readyLabel: `about ${minutes} minutes`,
+      /* Slot generation is identical in every language; only the labels differ. */
+      days: generateSlots(now, fulfillmentType, zone, 0, locale),
+      readyMinutes: Math.round((ready.getTime() - now.getTime()) / 60000),
       acceptingNow: isAcceptingOrdersAt(now),
     };
-  }, [fulfillmentType, postalCode]);
+  }, [fulfillmentType, postalCode, locale]);
 
   const noSlots = days.length === 0;
 
@@ -92,22 +98,22 @@ export function TimingPicker({ error }: { error: string | null }) {
   return (
     <fieldset className="border-0 p-0">
       <legend className="font-display text-xl font-semibold text-ink">
-        When?
+        {t("when")}
       </legend>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {[
           {
             value: "asap" as const,
-            label: "As soon as possible",
+            label: t("asap"),
             // When the kitchen is shut, ASAP is not an option the customer can
             // take — saying "about 20 minutes" would be a promise nobody can keep.
-            detail: acceptingNow ? readyLabel : "Kitchen closed right now",
+            detail: acceptingNow ? t("asapDetail", { minutes: readyMinutes }) : t("kitchenClosed"),
           },
           {
             value: "scheduled" as const,
-            label: "Schedule for later",
-            detail: noSlots ? "No times left today" : "Choose a time",
+            label: t("scheduleLater"),
+            detail: noSlots ? t("noSlots") : t("chooseTime"),
           },
         ].map((choice) => {
           const isSelected = timing === choice.value;
@@ -153,7 +159,7 @@ export function TimingPicker({ error }: { error: string | null }) {
         <div className="mt-5">
           {/* ── Which day ───────────────────────────────────────────────── */}
           <fieldset className="border-0 p-0">
-            <legend className="text-sm font-medium text-ink">Which day?</legend>
+            <legend className="text-sm font-medium text-ink">{t("whichDay")}</legend>
             {/*
               A wrapping grid rather than a scrolling strip. Six days fit in two
               rows on the narrowest phone, so nothing is hidden off the edge —
@@ -191,7 +197,16 @@ export function TimingPicker({ error }: { error: string | null }) {
                       {holdsBooking && selectedSlot ? `, booked for ${selectedSlot.label}` : ""}
                     </span>
                     <span aria-hidden="true" className="block text-sm font-semibold text-ink">
-                      {day.label}
+                      {/*
+                        "Today" and "Tomorrow" are interface words and live in
+                        the catalogue; anything further out is a weekday, which
+                        Intl already produced in the right language.
+                      */}
+                      {day.offset === 0
+                        ? t("today")
+                        : day.offset === 1
+                          ? t("tomorrow")
+                          : day.longLabel.split(" ")[0]}
                     </span>
                     <span aria-hidden="true" className="block text-xs text-ink-muted">
                       {day.dateLabel}
@@ -220,7 +235,7 @@ export function TimingPicker({ error }: { error: string | null }) {
             aria-describedby={error ? "timing-error" : undefined}
           >
             <legend className="text-sm font-medium text-ink">
-              What time on {activeDay.longLabel}?
+              {t("whatTimeOn", { day: activeDay.longLabel })}
             </legend>
             {/*
               Four across on a phone: at 360px that is a 76px target per time,
@@ -271,20 +286,30 @@ export function TimingPicker({ error }: { error: string | null }) {
             }`}
           >
             {selectedSlot && selectedDay
-              ? `Ready ${selectedDay.label.toLowerCase() === "today" || selectedDay.label.toLowerCase() === "tomorrow" ? selectedDay.label.toLowerCase() : `on ${selectedDay.longLabel}`} at ${selectedSlot.label}.`
-              : "Pick a time above."}
+              ? /*
+                 * Three whole sentences rather than one built from clauses.
+                 * English can say "Ready today at 18:15" by dropping a word
+                 * into a slot; Dutch says "Vandaag klaar om 18:15", which puts
+                 * the day first and the verb elsewhere. Only complete strings
+                 * let a translator do that.
+                 */
+                selectedDay.offset === 0
+                ? t("readyToday", { time: selectedSlot.label })
+                : selectedDay.offset === 1
+                  ? t("readyTomorrow", { time: selectedSlot.label })
+                  : t("readyOn", { day: selectedDay.longLabel, time: selectedSlot.label })
+              : t("pickATime")}
           </p>
 
           <p className="mt-2 text-xs text-ink-subtle">
-            Times are shown for {RESTAURANT.address.city}.
+            {tc("timesShownFor", { city: RESTAURANT.address.city })}
           </p>
         </div>
       )}
 
       {!acceptingNow && (
         <p role="status" className="mt-4 rounded-control bg-surface-sunken p-3 text-sm text-ink-muted">
-          The kitchen is closed at the moment, so orders can only be scheduled.
-          Pick a time above and we&rsquo;ll have it ready.
+          {t("closedNotice")}
         </p>
       )}
 

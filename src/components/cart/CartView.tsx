@@ -19,6 +19,9 @@ import { useOrderDraftStore } from "@/lib/order/draft-store";
 import { validateOrderDraft, validateTiming } from "@/lib/order/validation";
 import { findZone } from "@/lib/fulfillment/delivery";
 import { formatMoney } from "@/lib/money";
+import { useTranslations, useLocale } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
+import type { Locale } from "@/i18n/config";
 
 /**
  * The cart and order configuration.
@@ -42,6 +45,11 @@ export function CartView({
   addressLookupEnabled?: boolean;
 }) {
   const router = useRouter();
+  const t = useTranslations();
+  const locale = useLocale() as Locale;
+  /* The pure validators take a translator; this is the customer's. */
+  const messages = fromNextIntl(t as (k: string, v?: Record<string, string | number>) => string);
+  const money = (cents: number) => formatMoney(cents, locale);
 
   const lines = useCartStore((state) => state.lines);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
@@ -60,7 +68,7 @@ export function CartView({
 
   const [showErrors, setShowErrors] = useState(false);
 
-  const fieldErrors = validateOrderDraft(draft, fulfillmentType);
+  const fieldErrors = validateOrderDraft(draft, fulfillmentType, messages);
   const zone = fulfillmentType === "delivery" ? findZone(postalCode) : null;
   const timingError = validateTiming(timing, scheduledFor, fulfillmentType, zone);
 
@@ -80,17 +88,23 @@ export function CartView({
    * sent hunting through a form that has nothing wrong with it.
    */
   const blockReason = (): string | null => {
-    if (lines.length === 0) return "Your cart is empty.";
+    if (lines.length === 0) return t("validation.cartEmpty");
     if (!summary.deliverable) {
-      return "We don't deliver to that postal code. Switch to pickup to continue.";
+      return t("delivery.outsideAreaSwitch");
     }
     if (blockedByMinimum) {
-      return `Delivery to this postal code starts at ${formatMoney(
-        summary.shortfall + summary.totals.subtotal,
-      )}. Add ${formatMoney(summary.shortfall)} more, or switch to pickup.`;
+      /*
+       * One whole sentence with two values in it, not four fragments glued
+       * together. Dutch puts the amount somewhere English does not, and only a
+       * complete string in the catalogue lets a translator move it.
+       */
+      return t("delivery.belowMinimumBlock", {
+        minimum: money(summary.shortfall + summary.totals.subtotal),
+        shortfall: money(summary.shortfall),
+      });
     }
     if (Object.keys(fieldErrors).length > 0) {
-      return "Please complete the highlighted details above.";
+      return t("validation.completeHighlighted");
     }
     if (timingError) return timingError;
     return null;
@@ -148,7 +162,7 @@ export function CartView({
       <DraftHydration />
       <Container className="py-10 sm:py-14">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          Your cart
+          {t("cart.title")}
         </h1>
         <p className="mt-2 text-ink-muted">
           {summary.itemCount} {summary.itemCount === 1 ? "item" : "items"} ·{" "}
@@ -249,8 +263,7 @@ export function CartView({
                   role="status"
                   className="mt-4 rounded-control bg-warning-soft p-3 text-sm text-warning"
                 >
-                  Add {formatMoney(summary.shortfall)} more to reach the minimum
-                  for delivery to this postal code — or switch to pickup.
+                  {t("delivery.belowMinimumBanner", { shortfall: money(summary.shortfall) })}
                 </p>
               )}
 
@@ -259,8 +272,7 @@ export function CartView({
                   role="status"
                   className="mt-4 rounded-control bg-danger-soft p-3 text-sm text-danger"
                 >
-                  We don&rsquo;t deliver to that postal code yet. Pickup is still
-                  available.
+                  {t("delivery.outsideAreaBanner")}
                 </p>
               )}
 
@@ -269,7 +281,7 @@ export function CartView({
                 onClick={handleContinue}
                 className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-control bg-ember px-6 text-base font-semibold text-on-ember transition-colors hover:bg-ember-hover"
               >
-                Continue to checkout
+                {t("cart.continueToCheckout")}
               </button>
 
               {showErrors && !canContinue && (
@@ -279,7 +291,7 @@ export function CartView({
               )}
 
               <p className="mt-4 text-center text-xs text-ink-subtle">
-                No payment is taken. This is a demonstration project.
+                {t("cart.noPaymentYet")}
               </p>
             </div>
           </aside>

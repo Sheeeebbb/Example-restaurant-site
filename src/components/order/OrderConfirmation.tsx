@@ -1,11 +1,15 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import { translateStatus } from "@/i18n/status";
+import { FORMATTING, type Locale } from "@/i18n/config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { OrderTimeline } from "./OrderTimeline";
 import { useOrderStore } from "@/lib/order/order-store";
-import { deriveStatus, statusLabel } from "@/lib/order/status";
+import { deriveStatus } from "@/lib/order/status";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
@@ -34,6 +38,11 @@ export function OrderConfirmation({
   /** Item id -> category, so the fallback glyph matches the dish. */
   categoryByItemId: Record<string, string>;
 }) {
+  const t = useTranslations("order");
+  const ts = useTranslations("order.status");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, locale);
+
   const orders = useOrderStore((state) => state.orders);
   const hasHydrated = useOrderStore((state) => state.hasHydrated);
 
@@ -161,11 +170,11 @@ export function OrderConfirmation({
   const isDelivery = order.fulfillment.type === "delivery";
   const readyAt = new Date(order.estimatedReadyAt);
 
-  const timeFormat = new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+  const timeFormat = new Intl.DateTimeFormat(FORMATTING[locale].dateTime, {
     hour: "numeric",
     minute: "2-digit",
   });
-  const dayFormat = new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+  const dayFormat = new Intl.DateTimeFormat(FORMATTING[locale].dateTime, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -220,7 +229,7 @@ export function OrderConfirmation({
               some: an empty "Reason:" heading is worse than no heading. */}
           {cancellation?.reason && (
             <div className="mt-6 rounded-control border border-warning/40 bg-surface p-4">
-              <p className="text-sm font-semibold text-ink">Reason</p>
+              <p className="text-sm font-semibold text-ink">{t("reason")}</p>
               <p className="mt-1 leading-relaxed text-ink-muted">
                 {cancellation.reason}
               </p>
@@ -245,7 +254,7 @@ export function OrderConfirmation({
                   : "border-warning/40 bg-surface"
             }`}
           >
-            <p className="text-sm font-semibold text-ink">Refund</p>
+            <p className="text-sm font-semibold text-ink">{t("refund")}</p>
             <p className="mt-1 font-medium text-ink">{refundNotice.headline}</p>
             <p className="mt-1 leading-relaxed text-ink-muted">
               {refundNotice.detail}
@@ -254,7 +263,7 @@ export function OrderConfirmation({
 
           <dl className="mt-8 grid gap-6 border-t border-warning/30 pt-6 sm:grid-cols-3">
             <div>
-              <dt className="text-sm text-ink-muted">Order number</dt>
+              <dt className="text-sm text-ink-muted">{t("orderNumber")}</dt>
               <dd className="mt-1 font-display text-2xl font-bold tracking-wide text-ink">
                 {order.reference}
               </dd>
@@ -275,13 +284,13 @@ export function OrderConfirmation({
                   : "Refund"}
               </dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
-                {formatMoney(
+                {money(
                   cancellation?.refund?.amount ?? order.totals.total,
                 )}
               </dd>
               <dd className="text-sm text-ink-muted">
                 {order.payment.provider === "mock"
-                  ? "Test payment — no real money moved"
+                  ? t("testPayment")
                   : ""}
               </dd>
             </div>
@@ -329,7 +338,7 @@ export function OrderConfirmation({
 
           <dl className="mt-8 grid gap-6 border-t border-herb/30 pt-6 sm:grid-cols-3">
             <div>
-              <dt className="text-sm text-ink-muted">Order number</dt>
+              <dt className="text-sm text-ink-muted">{t("orderNumber")}</dt>
               <dd className="mt-1 font-display text-2xl font-bold tracking-wide text-ink">
                 {order.reference}
               </dd>
@@ -348,7 +357,7 @@ export function OrderConfirmation({
             <div>
               <dt className="text-sm text-ink-muted">Total paid</dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
-                {formatMoney(order.totals.total)}
+                {money(order.totals.total)}
               </dd>
               <dd className="text-sm text-ink-muted">
                 {order.payment.provider === "mock" ? "Test payment — nothing charged" : ""}
@@ -368,7 +377,7 @@ export function OrderConfirmation({
             Order status
           </h2>
           <p role="status" className="mt-1 text-sm text-ink-muted">
-            {statusLabel(status, order.fulfillment.type)}
+            {translateStatus(ts, status, order.fulfillment.type)}
           </p>
 
           {isCancelled ? (
@@ -503,7 +512,7 @@ export function OrderConfirmation({
                     )}
                   </div>
                   <p className="shrink-0 tabular-nums text-ink">
-                    {formatMoney(line.unitPrice * line.quantity)}
+                    {money(line.unitPrice * line.quantity)}
                   </p>
                 </li>
               ))}
@@ -513,14 +522,14 @@ export function OrderConfirmation({
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-muted">Subtotal</dt>
                 <dd className="tabular-nums text-ink">
-                  {formatMoney(order.totals.subtotal)}
+                  {money(order.totals.subtotal)}
                 </dd>
               </div>
               {order.totals.discount > 0 && (
                 <div className="flex justify-between gap-4 text-herb">
                   <dt>Discount ({order.promotionCode})</dt>
                   <dd className="tabular-nums">
-                    −{formatMoney(order.totals.discount)}
+                    −{money(order.totals.discount)}
                   </dd>
                 </div>
               )}
@@ -530,18 +539,18 @@ export function OrderConfirmation({
                   <dd className="tabular-nums text-ink">
                     {order.totals.deliveryFee === 0
                       ? "Free"
-                      : formatMoney(order.totals.deliveryFee)}
+                      : money(order.totals.deliveryFee)}
                   </dd>
                 </div>
               )}
               <div className="flex justify-between gap-4 border-t border-line pt-2 text-base">
                 <dt className="font-semibold text-ink">Total</dt>
                 <dd className="font-semibold tabular-nums text-ink">
-                  {formatMoney(order.totals.total)}
+                  {money(order.totals.total)}
                 </dd>
               </div>
               <p className="text-xs text-ink-subtle">
-                Includes {formatMoney(order.totals.tax)} VAT at{" "}
+                Includes {money(order.totals.tax)} VAT at{" "}
                 {RESTAURANT.fees.taxRatePercent}%. Payment reference{" "}
                 {order.payment.reference}.
               </p>

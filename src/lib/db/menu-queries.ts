@@ -1,7 +1,8 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db, Tx } from "./client";
 import * as t from "./schema";
 import type { DietaryTag, MenuItem, OptionGroup } from "../types";
+import { DEFAULT_LOCALE, type Locale } from "../../i18n/config";
 
 /**
  * Assembling a `MenuItem` from its four tables.
@@ -33,10 +34,23 @@ function bareId(rowId: string): string {
   return separator === -1 ? rowId : rowId.slice(separator + 2);
 }
 
+/**
+ * A dish, in one language.
+ *
+ * The translation supplies words and nothing else. Everything that decides what
+ * a customer is buying — the id, the slug, the price, availability, allergens,
+ * the option groups — comes from the item row regardless of language, so
+ * switching language cannot change the order.
+ *
+ * A null or absent field falls through to the English column. That is the whole
+ * fallback: a half-translated dish shows its Dutch name and its English
+ * description rather than a blank line.
+ */
 function toMenuItem(
   item: ItemRow,
   groups: GroupRow[],
   optionsByGroup: Map<string, OptionRow[]>,
+  translation?: { name: string | null; description: string | null },
 ): MenuItem {
   const optionGroups: OptionGroup[] = groups.map((group) => ({
     id: bareId(group.id),
@@ -59,8 +73,8 @@ function toMenuItem(
     id: item.id,
     slug: item.slug,
     categoryId: item.categoryId,
-    name: item.name,
-    description: item.description,
+    name: translation?.name || item.name,
+    description: translation?.description || item.description,
     basePrice: item.basePrice,
     image: { src: item.imageSrc, alt: item.imageAlt },
     tags: item.tags as DietaryTag[],
@@ -76,10 +90,31 @@ function toMenuItem(
 export async function hydrateItems(
   db: Db | Tx,
   items: ItemRow[],
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<MenuItem[]> {
   if (items.length === 0) return [];
 
   const itemIds = items.map((item) => item.id);
+
+  /*
+   * One query for the whole page's translations, not one per dish. Skipped
+   * entirely for English, which is what the columns already hold.
+   */
+  const translations = new Map<string, { name: string | null; description: string | null }>();
+  if (locale !== DEFAULT_LOCALE) {
+    const rows = await db
+      .select()
+      .from(t.menuItemTranslations)
+      .where(
+        and(
+          inArray(t.menuItemTranslations.menuItemId, itemIds),
+          eq(t.menuItemTranslations.locale, locale),
+        ),
+      );
+    for (const row of rows) {
+      translations.set(row.menuItemId, { name: row.name, description: row.description });
+    }
+  }
   const groups = await db
     .select()
     .from(t.optionGroups)
@@ -113,28 +148,30 @@ export async function hydrateItems(
   }
 
   return items.map((item) =>
-    toMenuItem(item, groupsByItem.get(item.id) ?? [], optionsByGroup),
+    toMenuItem(item, groupsByItem.get(item.id) ?? [], optionsByGroup, translations.get(item.id)),
   );
 }
 
 /** Every menu item, in a stable order. */
-export async function loadMenu(db: Db | Tx): Promise<MenuItem[]> {
+export async function loadMenu(db: Db | Tx, locale: Locale = DEFAULT_LOCALE): Promise<MenuItem[]> {
   const items = await db.select().from(t.menuItems).orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
-  return hydrateItems(db, items);
+  return hydrateItems(db, items, locale);
 }
 
 export async function loadMenuItemById(
   db: Db | Tx,
   id: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<MenuItem | null> {
   const items = await db.select().from(t.menuItems).where(eq(t.menuItems.id, id));
-  return (await hydrateItems(db, items))[0] ?? null;
+  return (await hydrateItems(db, items, locale))[0] ?? null;
 }
 
 export async function loadMenuItemBySlug(
   db: Db | Tx,
   slug: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<MenuItem | null> {
   const items = await db.select().from(t.menuItems).where(eq(t.menuItems.slug, slug));
-  return (await hydrateItems(db, items))[0] ?? null;
+  return (await hydrateItems(db, items, locale))[0] ?? null;
 }

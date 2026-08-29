@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "./SectionHeading";
 
@@ -8,25 +9,16 @@ import { SectionHeading } from "./SectionHeading";
  * demonstration project. When real reviews arrive they come from whatever
  * platform collects them, not from this file.
  */
+/**
+ * Three reviews. Text lives in the catalogue; the names do not.
+ *
+ * A person's name is not translated — "Marta K." is Marta K. in every language.
+ * Only what she said, and where she is, are words this site chose.
+ */
 const TESTIMONIALS = [
-  {
-    quote:
-      "Ordered for six people on a Friday night expecting chaos. Everything arrived hot, correctly labelled, and the fries were somehow still crisp. That never happens.",
-    name: "Marta K.",
-    context: "Kreuzberg · Delivery",
-  },
-  {
-    quote:
-      "I use the pickup option most weeks on my way home. It's ready when the app says it will be, every time, and nobody makes me queue behind the dine-in crowd.",
-    name: "Jonas R.",
-    context: "Neukölln · Pickup",
-  },
-  {
-    quote:
-      "The allergen info on every dish is the reason we keep coming back. My daughter is coeliac and this is one of the few places we order from without phoning ahead.",
-    name: "Priya S.",
-    context: "Prenzlauer Berg · Delivery",
-  },
+  { n: 1, name: "Marta K." },
+  { n: 2, name: "Jonas R." },
+  { n: 3, name: "Priya S." },
 ];
 
 function Stars() {
@@ -41,14 +33,15 @@ function Stars() {
   );
 }
 
-export function Testimonials() {
+export async function Testimonials() {
+  const t = await getTranslations("home");
   return (
     <section aria-labelledby="testimonials-heading" className="bg-paper">
       <Container className="py-16 sm:py-24">
         <SectionHeading
           id="testimonials-heading"
-          eyebrow="Reviews"
-          title="What the neighbourhood says"
+          eyebrow={t("reviews")}
+          title={t("testimonialsTitle")}
           align="center"
         />
 
@@ -57,16 +50,16 @@ export function Testimonials() {
             <li key={testimonial.name}>
               <figure className="flex h-full flex-col rounded-card border border-line bg-surface p-6 shadow-card">
                 <Stars />
-                <span className="sr-only">Rated 5 out of 5</span>
+                <span className="sr-only">{t("ratedOutOfFive", { rating: 5 })}</span>
                 <blockquote className="mt-4 flex-1 text-[0.9375rem] leading-relaxed text-ink-muted">
-                  <p>&ldquo;{testimonial.quote}&rdquo;</p>
+                  <p>&ldquo;{t(`testimonialQuote${testimonial.n}`)}&rdquo;</p>
                 </blockquote>
                 <figcaption className="mt-5 border-t border-line pt-4">
                   <span className="block font-semibold text-ink">
                     {testimonial.name}
                   </span>
                   <span className="text-sm text-ink-subtle">
-                    {testimonial.context}
+                    {t(`testimonialLocation${testimonial.n}`)}
                   </span>
                 </figcaption>
               </figure>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useState } from "react";
 import { useCartStore } from "@/lib/cart/store";
 
@@ -19,6 +21,7 @@ export function ApplyPromoButton({
   code: string;
   className?: string;
 }) {
+  const t = useTranslations("home");
   const setPromotionCode = useCartStore((state) => state.setPromotionCode);
   const [applied, setApplied] = useState(false);
 
@@ -35,11 +38,11 @@ export function ApplyPromoButton({
         onClick={apply}
         className="inline-flex min-h-12 w-full items-center justify-center rounded-control bg-ember px-6 text-base font-medium text-on-ember transition-colors hover:bg-ember-hover lg:w-auto"
       >
-        {applied ? "Code applied" : "Apply to my order"}
+        {applied ? t("promoApplied") : t("promoApply")}
       </button>
       <p role="status" aria-live="polite" className="mt-2 text-sm text-poster-muted">
         {applied
-          ? "Saved to your cart — it comes off at checkout."
+          ? t("promoSaved")
           : ""}
       </p>
     </div>

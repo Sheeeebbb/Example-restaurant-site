@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 
@@ -9,7 +10,8 @@ import { SiteFooter } from "@/components/layout/SiteFooter";
  * root layout needing to know which one it is rendering, which a server layout
  * cannot find out anyway.
  */
-export default function SiteLayout({ children }: LayoutProps<"/">) {
+export default async function SiteLayout({ children }: LayoutProps<"/">) {
+  const t = await getTranslations("nav");
   return (
     <>
       {/*
@@ -23,7 +25,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
         href="#main"
         className="sr-only rounded-control bg-ember text-sm font-medium text-on-ember focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-100 focus:px-4 focus:py-2"
       >
-        Skip to main content
+        {t("skipToContent")}
       </a>
 
       <SiteHeader />

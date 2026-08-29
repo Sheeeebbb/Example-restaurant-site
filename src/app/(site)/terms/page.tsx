@@ -1,3 +1,18 @@
+/**
+ * NOT TRANSLATED, deliberately.
+ *
+ * This is a legal instrument, not interface copy. A privacy notice and a set of
+ * terms say what the restaurant is bound to and what a customer has agreed to,
+ * and a translation of them is a second binding document — one whose wording
+ * should come from whoever is accountable for the first, not from the person
+ * who wired up the i18n system.
+ *
+ * So it falls back to English, which is exactly what the fallback is for: a
+ * real sentence in the wrong language beats a confident wrong sentence in the
+ * right one. When counsel supplies Dutch copy, it becomes a `legal` namespace
+ * in the message catalogue like anything else — no code here has to change
+ * shape for that to happen.
+ */
 import type { Metadata } from "next";
 import { Prose } from "@/components/layout/Prose";
 import { RESTAURANT } from "@/lib/config/restaurant";

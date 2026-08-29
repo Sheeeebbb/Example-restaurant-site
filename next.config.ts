@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 import { allowedDevOrigins } from "./src/lib/config/dev-origins";
 import { securityHeaders } from "./src/lib/config/security-headers";
 
@@ -56,4 +57,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/*
+ * next-intl, in its "without i18n routing" mode: the locale comes from a cookie
+ * rather than a URL segment, so every existing path keeps working. An order
+ * tracking link already in someone's messages, a bookmarked dish, an API route
+ * — none of them change. See src/i18n/README.md for why that trade was made.
+ */
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+export default withNextIntl(nextConfig);

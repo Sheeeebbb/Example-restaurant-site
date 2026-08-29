@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { ApplyPromoButton } from "./ApplyPromoButton";
 import { formatMoney } from "@/lib/money";
@@ -11,7 +12,8 @@ import { FIRST_ORDER_PROMO } from "@/lib/data/promotions";
  * record the cart validates against. The banner therefore cannot advertise an
  * offer the checkout would refuse.
  */
-export function PromoBanner() {
+export async function PromoBanner() {
+  const t = await getTranslations("home");
   const promo = FIRST_ORDER_PROMO;
 
   return (
@@ -37,7 +39,7 @@ export function PromoBanner() {
             </div>
 
             <div className="w-full shrink-0 lg:w-auto">
-              <p className="text-sm text-poster-muted">Promo code</p>
+              <p className="text-sm text-poster-muted">{t("promoCode")}</p>
               <p className="mt-2 font-display text-3xl font-bold tracking-[0.12em] sm:text-4xl">
                 {promo.code}
               </p>

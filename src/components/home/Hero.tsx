@@ -1,3 +1,5 @@
+import { getTranslations, getLocale } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { Container } from "@/components/ui/Container";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { OrderModeButtons } from "./OrderModeButtons";
@@ -14,7 +16,7 @@ import type { MenuItem } from "@/lib/types";
  * not as a gap where a picture should be. When photos land they simply fill the
  * two frames.
  */
-export function Hero({
+export async function Hero({
   showcase,
   showcasePhoto,
   heroPhoto,
@@ -23,6 +25,8 @@ export function Hero({
   showcasePhoto: string | null;
   heroPhoto: string | null;
 }) {
+  const t = await getTranslations("home");
+  const locale = (await getLocale()) as Locale;
   return (
     <section className="relative overflow-hidden border-b border-line bg-surface">
       <Container className="py-14 sm:py-20 lg:py-28">
@@ -31,19 +35,23 @@ export function Hero({
             <div className="flex flex-wrap items-center gap-2">
               <ServiceStatus />
               <p className="inline-flex items-center gap-2 rounded-full bg-ember-soft px-3 py-1.5 text-sm font-medium text-ember">
-                Free delivery over {formatMoney(RESTAURANT.fees.freeDeliveryThreshold)}
+                {t("freeDeliveryOver", { threshold: formatMoney(RESTAURANT.fees.freeDeliveryThreshold, locale) })}
               </p>
             </div>
 
             <h1 className="mt-5 font-display text-[2.6rem] font-semibold leading-[1.05] tracking-tight text-ink sm:text-6xl lg:text-[4.25rem]">
-              Good Food.
+              {/*
+                Two lines rather than one string with markup in it: the accent
+                span sits on the second half in English and on a different word
+                in Dutch, so each language supplies its own two halves.
+              */}
+              {t("heroTitle")}
               <br />
-              <span className="text-ember">Delivered</span> to Your Door.
+              <span className="text-ember">{t("heroTitleAccent")}</span>
             </h1>
 
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-muted">
-              Freshly prepared food made with quality ingredients. Order for
-              delivery or pickup whenever you&rsquo;re hungry.
+              {t("heroBody")}
             </p>
 
             <OrderModeButtons className="mt-8" />
@@ -52,9 +60,9 @@ export function Hero({
                 third stat orphaned on its own row. */}
             <dl className="mt-10 grid grid-cols-3 gap-x-4 border-t border-line pt-6 sm:gap-x-10">
               {[
-                { value: "25 min", label: "Average delivery" },
-                { value: "4.8/5", label: "From 1,200+ reviews" },
-                { value: "100%", label: "Fresh, never frozen" },
+                { value: t("statDelivery"), label: t("averageDelivery") },
+                { value: t("statRating"), label: t("fromReviews") },
+                { value: t("statFresh"), label: t("freshNeverFrozen") },
               ].map((stat) => (
                 <div key={stat.label}>
                   <dt className="sr-only">{stat.label}</dt>
@@ -98,7 +106,7 @@ export function Hero({
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-ink-subtle">
-                    Most ordered
+                    {t("mostOrdered")}
                   </p>
                   <p className="truncate font-display font-semibold text-ink">
                     {showcase.name}

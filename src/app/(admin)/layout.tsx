@@ -24,8 +24,16 @@ export default async function AdminLayout({ children }: LayoutProps<"/"> ) {
    */
   const actor = await currentActor();
 
+  /*
+   * The staff area is English-only, by decision — see src/i18n/README.md. The
+   * document's `lang` follows the customer's chosen language, so this subtree
+   * declares its own: without it a screen reader would read English staff copy
+   * with Dutch pronunciation for anyone who set the site to Dutch.
+   *
+   * A `div` rather than a fragment purely so there is somewhere to put it.
+   */
   return (
-    <>
+    <div lang="en">
       <a
         href="#admin-main"
         className="sr-only rounded-control bg-ember text-sm font-medium text-on-ember focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-100 focus:px-4 focus:py-2"
@@ -77,6 +85,6 @@ export default async function AdminLayout({ children }: LayoutProps<"/"> ) {
       <main id="admin-main" className="flex-1 bg-surface-sunken">
         {children}
       </main>
-    </>
+    </div>
   );
 }

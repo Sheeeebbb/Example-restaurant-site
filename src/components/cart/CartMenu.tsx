@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -46,6 +48,7 @@ export function CartMenu({
   photoMap: Record<string, string | null>;
   categoryByItemId: Record<string, string>;
 }) {
+  const t = useTranslations("cart");
   const pathname = usePathname();
   const lines = useCartStore((state) => state.lines);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
@@ -139,7 +142,7 @@ export function CartMenu({
         >
           <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
             <p className="font-display text-base font-semibold text-ink">
-              Your cart
+              {t("title")}
             </p>
             <p className="text-sm text-ink-muted">
               {summary.itemCount} {summary.itemCount === 1 ? "item" : "items"}
@@ -149,7 +152,7 @@ export function CartMenu({
           {lines.length === 0 ? (
             <div className="px-4 py-6 text-center">
               <p className="font-display text-base font-semibold text-ink">
-                Your cart is empty
+                {t("empty")}
               </p>
               <p className="mt-1 text-sm text-ink-muted">
                 Let&rsquo;s fix that. Pick your favorites from the menu.

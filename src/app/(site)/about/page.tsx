@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
   description: RESTAURANT.description,
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const tf = await getTranslations("footer");
+  const tm = await getTranslations("menu");
   const hours = openingHoursSummary();
   /*
    * Most of the food photography is CC0 and carries no obligation. The few
@@ -52,7 +55,7 @@ export default function AboutPage() {
           className="rounded-card border border-line bg-surface p-6 sm:col-span-2 lg:col-span-1"
         >
           <h2 id="hours-heading" className="font-display text-xl font-semibold text-ink">
-            Opening hours
+            {tf("openingHours")}
           </h2>
           <dl className="mt-4 space-y-1 text-sm">
             {hours.map(({ day, hours: range }) => (
@@ -91,7 +94,7 @@ export default function AboutPage() {
           className="rounded-card border border-line bg-surface p-6"
         >
           <h2 id="allergen-heading" className="font-display text-xl font-semibold text-ink">
-            Allergens
+            {tm("allergens")}
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-ink-muted">
             Every dish lists its allergens on the menu. If you need something

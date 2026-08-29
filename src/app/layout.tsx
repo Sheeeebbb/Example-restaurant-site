@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import { CartHydration } from "@/components/cart/CartHydration";
 import { TouchActiveState } from "@/components/layout/TouchActiveState";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import "./globals.css";
 
@@ -66,16 +68,32 @@ export const metadata: Metadata = {
   description: RESTAURANT.description,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/**
+ * The document, and the language it is in.
+ *
+ * `lang` is resolved on the server from the same cookie the rest of the request
+ * uses, so it is correct in the first byte of HTML. That matters beyond
+ * tidiness: it is what tells a screen reader which pronunciation to use, and
+ * getting it wrong makes Dutch read aloud in an English accent.
+ *
+ * `NextIntlClientProvider` hands the active locale's messages to client
+ * components. Only that locale is serialised — the other language is never sent
+ * to the browser.
+ */
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const locale = await getLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper text-ink">
-        <CartHydration />
-        <TouchActiveState />
-        {children}
+        <NextIntlClientProvider>
+          <CartHydration />
+          <TouchActiveState />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

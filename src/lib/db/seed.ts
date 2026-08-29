@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { closeDb, getDb, type Db, type Tx } from "./client";
 import * as t from "./schema";
 import { CATEGORIES, MENU_ITEMS } from "../data/menu";
+import { CATEGORY_NL, MENU_ITEM_NL } from "../data/menu-nl";
 import { PERMISSION_CATALOGUE, ALL_PERMISSIONS } from "../staff/permissions";
 import { hashPassword } from "../staff/password";
 
@@ -130,6 +131,33 @@ export async function syncCatalogue(db: Db | Tx = getDb()): Promise<void> {
         });
       }
     }
+  }
+
+  /*
+   * Menu content in other languages.
+   *
+   * Upserted like everything else here: a translation staff later edit through
+   * an admin screen survives a deploy unless the code changed it too. A dish
+   * with no row simply shows its English name.
+   */
+  for (const [categoryId, translation] of Object.entries(CATEGORY_NL)) {
+    await db
+      .insert(t.categoryTranslations)
+      .values({ categoryId, locale: "nl", ...translation })
+      .onConflictDoUpdate({
+        target: [t.categoryTranslations.categoryId, t.categoryTranslations.locale],
+        set: { name: translation.name ?? null, description: translation.description ?? null },
+      });
+  }
+
+  for (const [menuItemId, translation] of Object.entries(MENU_ITEM_NL)) {
+    await db
+      .insert(t.menuItemTranslations)
+      .values({ menuItemId, locale: "nl", ...translation })
+      .onConflictDoUpdate({
+        target: [t.menuItemTranslations.menuItemId, t.menuItemTranslations.locale],
+        set: { name: translation.name ?? null, description: translation.description ?? null },
+      });
   }
 
   /*
@@ -401,7 +429,8 @@ export async function resetDatabase(db: Db = getDb()): Promise<void> {
     TRUNCATE TABLE
       order_item_options, order_items, order_status_events, order_addresses,
       order_payments, order_refunds, delivery_assignments, orders,
-      customers, menu_images, menu_options, option_groups, menu_items, categories,
+      customers, menu_images, menu_item_translations, category_translations,
+      menu_options, option_groups, menu_items, categories,
       staff_sessions, staff_roles, staff, role_permissions, roles, permissions,
       audit_log, data_migrations
     RESTART IDENTITY CASCADE

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ButtonLink } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 
@@ -19,6 +20,7 @@ import { Container } from "@/components/ui/Container";
  * animation here, so it never plays for anyone who asked for less motion.
  */
 export function EmptyCart() {
+  const t = useTranslations("cart");
   return (
     <Container className="py-20 sm:py-28">
       <div className="mx-auto flex max-w-md flex-col items-center text-center motion-safe:animate-[fade-up_320ms_ease-out]">
@@ -45,7 +47,7 @@ export function EmptyCart() {
         </span>
 
         <h1 className="mt-8 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          Your cart is empty
+          {t("empty")}
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-ink-muted">
           Let&rsquo;s fix that. Explore our menu and pick your favorites.

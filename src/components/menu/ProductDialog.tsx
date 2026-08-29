@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useEffect, useRef, useState } from "react";
 import { FoodImage } from "./FoodImage";
 import { ProductCustomizer } from "./ProductCustomizer";
@@ -35,6 +37,7 @@ export function ProductDialog({
   photoSrc: string | null;
   onClose: () => void;
 }) {
+  const t = useTranslations("menu");
   const dialogRef = useRef<HTMLDialogElement>(null);
   // Handed to the customiser so it can render its add button into the footer
   // below, which stays put while the body scrolls.
@@ -164,7 +167,7 @@ export function ProductDialog({
                 {!item.available && (
                   <div className="absolute inset-0 flex items-center justify-center bg-surface/70">
                     <span className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-ink-inverse">
-                      Sold out
+                      {t("soldOut")}
                     </span>
                   </div>
                 )}
@@ -225,7 +228,7 @@ export function ProductDialog({
                 an allergen question.
               */}
               <div className="mt-5 rounded-control border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">Allergens</h3>
+                <h3 className="text-sm font-semibold text-ink">{t("allergens")}</h3>
                 {item.allergens.length > 0 ? (
                   <p className="mt-1.5 text-sm capitalize leading-relaxed text-ink-muted">
                     {item.allergens.join(", ")}

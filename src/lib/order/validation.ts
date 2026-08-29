@@ -3,6 +3,7 @@ import { normalizePostalCode, postalCodeError } from "../fulfillment/postal-code
 import { isAcceptingOrdersAt, isSlotStillValid } from "../fulfillment/scheduling";
 import type { DeliveryZone } from "../types";
 import { RESTAURANT } from "../config/restaurant";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * Validation for the order configuration step.
@@ -90,6 +91,12 @@ export const FIELD_LIMITS = {
 export function validateOrderDraft(
   draft: OrderDraft,
   fulfillmentType: FulfillmentType,
+  /**
+   * The words. Defaults to English, so the server and the tests behave exactly
+   * as they did before this was translatable — a component passes the
+   * customer's language and gets the same rules in it.
+   */
+  t: Messages = englishMessages,
 ): FieldErrors {
   const errors: FieldErrors = {};
   const trimmed = (field: DraftField) => draft[field].trim();
@@ -97,32 +104,32 @@ export function validateOrderDraft(
   // Length first: an over-long value is rejected whatever else it contains.
   for (const [field, limit] of Object.entries(FIELD_LIMITS) as [DraftField, number][]) {
     if ((draft[field] ?? "").length > limit) {
-      errors[field] = `Please keep this under ${limit} characters.`;
+      errors[field] = t("validation.tooLong", { max: limit });
     }
   }
 
   if (trimmed("name").length < 2) {
-    errors.name = "Please enter your full name.";
+    errors.name = t("validation.nameRequired");
   }
 
   if (!trimmed("phone")) {
-    errors.phone = "We need a phone number in case the driver can't find you.";
+    errors.phone = t("validation.phoneRequired");
   } else if (digitCount(draft.phone) < 6) {
-    errors.phone = "That doesn't look like a complete phone number.";
+    errors.phone = t("validation.phoneInvalid");
   }
 
   if (!trimmed("email")) {
-    errors.email = "We'll send your receipt here.";
+    errors.email = t("validation.emailRequired");
   } else if (!looksLikeEmail(draft.email)) {
-    errors.email = "Please check this email address.";
+    errors.email = t("validation.emailInvalid");
   }
 
   if (fulfillmentType === "delivery") {
-    if (!trimmed("street")) errors.street = "Please enter your street.";
+    if (!trimmed("street")) errors.street = t("validation.streetRequired");
     if (!trimmed("houseNumber")) {
-      errors.houseNumber = "Please add the house or apartment number.";
+      errors.houseNumber = t("validation.houseNumberRequired");
     }
-    if (!trimmed("city")) errors.city = "Please enter your city.";
+    if (!trimmed("city")) errors.city = t("validation.cityRequired");
 
     /*
      * Empty, half-typed, malformed and out-of-area all resolve here, in the

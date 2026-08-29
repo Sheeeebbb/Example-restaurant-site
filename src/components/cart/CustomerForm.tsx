@@ -12,6 +12,9 @@ import {
   type AutofillField,
 } from "@/lib/fulfillment/address-autofill";
 import { formatMoney } from "@/lib/money";
+import { useTranslations, useLocale } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
+import type { Locale } from "@/i18n/config";
 import { DELIVERY_AREA, RESTAURANT } from "@/lib/config/restaurant";
 import type { FulfillmentType } from "@/lib/types";
 
@@ -35,7 +38,8 @@ import type { FulfillmentType } from "@/lib/types";
 
 interface FieldSpec {
   name: DraftField;
-  label: string;
+  /** Key in the `checkout` namespace. */
+  labelKey: string;
   type?: string;
   autoComplete: string;
   inputMode?: "text" | "tel" | "email" | "numeric";
@@ -45,9 +49,9 @@ interface FieldSpec {
 }
 
 const CONTACT_FIELDS: FieldSpec[] = [
-  { name: "name", label: "Full name", autoComplete: "name", span: "full" },
-  { name: "phone", label: "Phone", type: "tel", autoComplete: "tel", inputMode: "tel", span: "half" },
-  { name: "email", label: "Email", type: "email", autoComplete: "email", inputMode: "email", span: "half" },
+  { name: "name", labelKey: "name", autoComplete: "name", span: "full" },
+  { name: "phone", labelKey: "phone", type: "tel", autoComplete: "tel", inputMode: "tel", span: "half" },
+  { name: "email", labelKey: "email", type: "email", autoComplete: "email", inputMode: "email", span: "half" },
 ];
 
 /** "8930 AB" where the area allows letters, "8930" where it does not. */
@@ -57,15 +61,15 @@ const POSTAL_CODE_PLACEHOLDER =
     : String(DELIVERY_AREA.minPostalCode);
 
 const ADDRESS_FIELDS: FieldSpec[] = [
-  { name: "street", label: "Street", autoComplete: "address-line1", span: "full" },
-  { name: "houseNumber", label: "House / apartment number", autoComplete: "address-line2", span: "half" },
+  { name: "street", labelKey: "street", autoComplete: "address-line1", span: "full" },
+  { name: "houseNumber", labelKey: "houseNumber", autoComplete: "address-line2", span: "half" },
   /*
    * Text, not numeric: a Dutch postal code ends in two letters, and a numeric
    * keypad cannot type them. The digits alone still work — the letters are what
    * turn "somewhere in Leeuwarden" into a street.
    */
-  { name: "postalCode", label: "Postal code", autoComplete: "postal-code", inputMode: "text", placeholder: POSTAL_CODE_PLACEHOLDER, span: "half" },
-  { name: "city", label: "City", autoComplete: "address-level2", span: "full" },
+  { name: "postalCode", labelKey: "postalCode", autoComplete: "postal-code", inputMode: "text", placeholder: POSTAL_CODE_PLACEHOLDER, span: "half" },
+  { name: "city", labelKey: "city", autoComplete: "address-level2", span: "full" },
 ];
 
 export function CustomerForm({
@@ -84,6 +88,11 @@ export function CustomerForm({
    */
   addressLookupEnabled?: boolean;
 }) {
+  const t = useTranslations();
+  const locale = useLocale() as Locale;
+  const messages = fromNextIntl(t as (k: string, v?: Record<string, string | number>) => string);
+  const money = (cents: number) => formatMoney(cents, locale);
+
   const draft = useOrderDraftStore((state) => state.draft);
   const setField = useOrderDraftStore((state) => state.setField);
   const setPostalCode = useCartStore((state) => state.setPostalCode);
@@ -110,7 +119,7 @@ export function CustomerForm({
     if (field === "street" || field === "city") touched.current.add(field);
   };
 
-  const postal = checkPostalCode(draft.postalCode);
+  const postal = checkPostalCode(draft.postalCode, messages);
   const zone = postal.deliverable ? findZone(postal.normalized) : null;
 
   /*
@@ -240,8 +249,12 @@ export function CustomerForm({
         <path d="m4 10.5 4 4 8-9" />
       </svg>
       <span>
-        We deliver here
-        {zone ? ` · ${formatMoney(zone.deliveryFee)}, about ${zone.estimatedMinutes} min` : ""}
+        {zone
+          ? t("delivery.weDeliverHereDetail", {
+              fee: money(zone.deliveryFee),
+              minutes: zone.estimatedMinutes,
+            })
+          : t("delivery.weDeliverHere")}
       </span>
     </p>
   ) : null;
@@ -262,7 +275,7 @@ export function CustomerForm({
           aria-hidden="true"
           className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-transparent"
         />
-        <span>Looking up this postal code&hellip;</span>
+        <span>{t("delivery.lookupSearching")}</span>
       </p>
     ) : lookup.state === "found" && lookupPlace ? (
       <p className="mt-1.5 text-sm text-ink-muted" role="status">
@@ -270,11 +283,11 @@ export function CustomerForm({
       </p>
     ) : lookup.state === "missing" ? (
       <p className="mt-1.5 text-sm text-ink-muted" role="status">
-        We couldn&rsquo;t look this one up — please fill in the address below.
+        {t("delivery.lookupNotFound")}
       </p>
     ) : lookup.state === "failed" ? (
       <p className="mt-1.5 text-sm text-ink-muted" role="status">
-        Address lookup isn&rsquo;t responding — please fill in the address below.
+        {t("delivery.lookupUnavailable")}
       </p>
     ) : null;
 
@@ -290,7 +303,7 @@ export function CustomerForm({
 
   const streetPicker: ReactNode = streetChoices.length > 0 && (
     <div className="mt-2">
-      <p className="text-sm text-ink-muted">Which street?</p>
+      <p className="text-sm text-ink-muted">{t("delivery.whichStreet")}</p>
       <div className="mt-1.5 flex flex-wrap gap-2">
         {streetChoices.map((option) => (
           <button
@@ -326,7 +339,7 @@ export function CustomerForm({
         className={spec.span === "half" ? "sm:col-span-1" : "sm:col-span-2"}
       >
         <label htmlFor={spec.name} className="text-sm font-medium text-ink">
-          {spec.label}
+          {t(`checkout.${spec.labelKey}`)}
         </label>
         <input
           id={spec.name}
@@ -359,7 +372,7 @@ export function CustomerForm({
   return (
     <div>
       <h2 className="font-display text-xl font-semibold text-ink">
-        {fulfillmentType === "delivery" ? "Where should we bring it?" : "Who's collecting?"}
+        {fulfillmentType === "delivery" ? t("checkout.whereToBring") : t("checkout.whoIsCollecting")}
       </h2>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

@@ -1,10 +1,15 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { CartView } from "@/components/cart/CartView";
 import { resolveMenuPhotos } from "@/lib/data/photos";
 import { getMenuItems } from "@/lib/data/repository";
 import { isAddressLookupConfigured } from "@/lib/fulfillment/address-lookup";
 
-export const metadata: Metadata = { title: "Your cart" };
+/* Translated, so the browser tab and any share card match the page. */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("nav");
+  return { title: t("cart") };
+}
 
 /**
  * Server shell for the cart.

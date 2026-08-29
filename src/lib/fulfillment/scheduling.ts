@@ -1,5 +1,6 @@
 import type { DeliveryZone, FulfillmentType, TimingMode } from "../types";
 import { RESTAURANT, WEEKDAY_NAMES, type TimeRange } from "../config/restaurant";
+import { DEFAULT_LOCALE, FORMATTING, type Locale } from "../../i18n/config";
 
 /**
  * Opening hours, lead times, and the scheduled-order slot picker.
@@ -22,8 +23,16 @@ export interface TimeSlot {
 export interface DaySlots {
   /** "2026-08-22" */
   date: string;
-  /** "Today", "Tomorrow", or "Saturday". */
+  /** "Today", "Tomorrow", or "Saturday". English; see `offset` for the translated form. */
   label: string;
+  /**
+   * Days from today: 0 is today, 1 is tomorrow.
+   *
+   * The UI needs this because "Today" and "Tomorrow" are interface words, not
+   * dates — they belong in the message catalogue with everything else, and a
+   * component cannot recover them from a formatted string.
+   */
+  offset: number;
   /**
    * "29 Aug" — the calendar date on its own, to sit under `label`.
    *
@@ -99,10 +108,20 @@ function roundUpToInterval(date: Date, interval: number): Date {
   return rounded;
 }
 
-function formatTime(date: Date): string {
-  return new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+/**
+ * Times and dates, in the reader's language.
+ *
+ * `timeZone` is pinned to the restaurant's, not the visitor's: every timestamp
+ * here is about when food is ready in the shop. A customer opening this on
+ * holiday must see the shop's clock, or they will arrive at the wrong hour.
+ * Language and timezone are separate settings and this keeps them so.
+ */
+function formatTime(date: Date, locale: Locale = DEFAULT_LOCALE): string {
+  return new Intl.DateTimeFormat(FORMATTING[locale].dateTime, {
     hour: "numeric",
     minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: RESTAURANT.timeZone,
   }).format(date);
 }
 
@@ -119,16 +138,22 @@ function toDateKey(date: Date): string {
  * is UTC midnight, which is the previous day in any negative-offset zone, and
  * the label would name a date the slots underneath it do not belong to.
  */
-function formatDayParts(date: Date): { dateLabel: string; longLabel: string } {
+function formatDayParts(
+  date: Date,
+  locale: Locale = DEFAULT_LOCALE,
+): { dateLabel: string; longLabel: string } {
+  const tag = FORMATTING[locale].dateTime;
   return {
-    dateLabel: new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+    dateLabel: new Intl.DateTimeFormat(tag, {
       day: "numeric",
       month: "short",
+      timeZone: RESTAURANT.timeZone,
     }).format(date),
-    longLabel: new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+    longLabel: new Intl.DateTimeFormat(tag, {
       weekday: "long",
       day: "numeric",
       month: "long",
+      timeZone: RESTAURANT.timeZone,
     }).format(date),
   };
 }
@@ -155,6 +180,8 @@ export function generateSlots(
   fulfillmentType: FulfillmentType,
   zone: DeliveryZone | null,
   slowestItemMinutes = 0,
+  /** Presentation only. Which slots exist is identical in every language. */
+  locale: Locale = DEFAULT_LOCALE,
 ): DaySlots[] {
   const { slotIntervalMinutes, maxDaysAhead, lastOrderBufferMinutes } =
     RESTAURANT.ordering;
@@ -188,14 +215,15 @@ export function generateSlots(
       cursor.getTime() <= lastSlot.getTime();
       cursor = new Date(cursor.getTime() + slotIntervalMinutes * 60_000)
     ) {
-      slots.push({ value: cursor.toISOString(), label: formatTime(cursor) });
+      slots.push({ value: cursor.toISOString(), label: formatTime(cursor, locale) });
     }
 
     if (slots.length > 0) {
       days.push({
         date: toDateKey(day),
         label: dayLabel(day, now),
-        ...formatDayParts(day),
+        offset,
+        ...formatDayParts(day, locale),
         slots,
       });
     }
@@ -248,17 +276,34 @@ export function resolveReadyTime(
 }
 
 /** Opening hours as display rows for the footer and the info page. */
-export function openingHoursSummary(): { day: string; hours: string }[] {
+export function openingHoursSummary(
+  locale: Locale = DEFAULT_LOCALE,
+): { day: string; hours: string }[] {
+  /*
+   * Weekday names from Intl rather than the English array, so a Dutch footer
+   * says "zaterdag". Index 0 is Sunday in both, which is what makes a fixed
+   * reference date safe here.
+   */
+  const weekday = new Intl.DateTimeFormat(FORMATTING[locale].dateTime, {
+    weekday: "long",
+    timeZone: RESTAURANT.timeZone,
+  });
+  const nameFor = (index: number) => {
+    // 2024-01-07 was a Sunday; adding the index walks the week.
+    const reference = new Date(Date.UTC(2024, 0, 7 + index, 12));
+    return weekday.format(reference);
+  };
+
   return WEEKDAY_NAMES.map((day, index) => {
     const range = RESTAURANT.openingHours[index];
-    if (!range) return { day, hours: "Closed" };
+    if (!range) return { day: nameFor(index), hours: "" };
 
     const format = (minutes: number) => {
       const date = new Date();
       date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-      return formatTime(date);
+      return formatTime(date, locale);
     };
 
-    return { day, hours: `${format(range.opens)} – ${format(range.closes)}` };
+    return { day: nameFor(index), hours: `${format(range.opens)} – ${format(range.closes)}` };
   });
 }

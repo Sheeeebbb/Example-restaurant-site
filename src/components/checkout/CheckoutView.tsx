@@ -1,5 +1,9 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
+import type { Locale } from "@/i18n/config";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -20,6 +24,7 @@ import { findZone } from "@/lib/fulfillment/delivery";
 import { EMPTY_CARD, validateCard, type CardDraft } from "@/lib/payments/card-mock";
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
+import { FORMATTING } from "@/i18n/config";
 import type { PlaceOrderRequest } from "@/lib/order/place-order";
 import type { Order } from "@/lib/types";
 
@@ -32,6 +37,9 @@ import type { Order } from "@/lib/types";
  * figure is what gets charged. Card details are not part of that request.
  */
 export function CheckoutView() {
+  const t = useTranslations();
+  const locale = useLocale() as Locale;
+  const messages = fromNextIntl(t as (k: string, v?: Record<string, string | number>) => string);
   const router = useRouter();
 
   const lines = useCartStore((state) => state.lines);
@@ -56,7 +64,7 @@ export function CheckoutView() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const fieldErrors = validateOrderDraft(draft, fulfillmentType);
+  const fieldErrors = validateOrderDraft(draft, fulfillmentType, messages);
   const zone = fulfillmentType === "delivery" ? findZone(postalCode) : null;
   const timingError = validateTiming(timing, scheduledFor, fulfillmentType, zone);
   const cardErrors = validateCard(card);
@@ -120,7 +128,7 @@ export function CheckoutView() {
       clearDraft();
       router.push(`/order/${result.order.reference}`);
     } catch {
-      setServerError("We couldn't reach the kitchen. Please try again.");
+      setServerError(t("errors.network"));
       setSubmitting(false);
     }
   };
@@ -144,7 +152,7 @@ export function CheckoutView() {
         <h1 className="font-display text-3xl font-semibold text-ink">
           Nothing to check out
         </h1>
-        <p className="mt-3 text-ink-muted">Your cart is empty.</p>
+        <p className="mt-3 text-ink-muted">{t("validation.cartEmpty")}</p>
         <Link
           href="/menu"
           className="mt-6 inline-flex min-h-12 items-center justify-center rounded-control bg-ember px-6 font-semibold text-on-ember"
@@ -155,14 +163,22 @@ export function CheckoutView() {
     );
   }
 
+  const money = (cents: number) => formatMoney(cents, locale);
+
   const whenLabel =
     timing === "scheduled" && scheduledFor
-      ? new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+      ? /*
+         * The reader's language, the restaurant's clock. `timeZone` is pinned
+         * so a customer abroad still sees the hour the shop will have it ready.
+         */
+        new Intl.DateTimeFormat(FORMATTING[locale].dateTime, {
           weekday: "long",
           hour: "numeric",
           minute: "2-digit",
+          hourCycle: "h23",
+          timeZone: RESTAURANT.timeZone,
         }).format(new Date(scheduledFor))
-      : "As soon as possible";
+      : t("timing.asap");
 
   return (
     <>
@@ -187,7 +203,7 @@ export function CheckoutView() {
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:gap-14">
           <div className="min-w-0 space-y-4">
             <EditableSection
-              title="Your details"
+              title={t("checkout.contactDetails")}
               open={openSection === "details"}
               onToggle={() => toggle("details")}
               invalid={showErrors && !detailsValid}
@@ -206,7 +222,7 @@ export function CheckoutView() {
                     )}
                   </>
                 ) : (
-                  <span className="text-danger">Not filled in yet</span>
+                  <span className="text-danger">{t("checkout.notFilledIn")}</span>
                 )
               }
             >
@@ -218,20 +234,20 @@ export function CheckoutView() {
             </EditableSection>
 
             <EditableSection
-              title="Order type"
+              title={t("checkout.orderType")}
               open={openSection === "fulfillment"}
               onToggle={() => toggle("fulfillment")}
               summary={
                 fulfillmentType === "delivery"
-                  ? `Delivery · ${formatMoney(summary.deliveryFeeBeforeWaiver)}`
-                  : "Pickup · free"
+                  ? t("checkout.deliveryWithFee", { fee: money(summary.deliveryFeeBeforeWaiver) })
+                  : t("checkout.pickupFree")
               }
             >
               <FulfillmentToggle />
             </EditableSection>
 
             <EditableSection
-              title="Timing"
+              title={t("checkout.timing")}
               open={openSection === "timing"}
               onToggle={() => toggle("timing")}
               invalid={showErrors && Boolean(timingError)}
@@ -277,7 +293,7 @@ export function CheckoutView() {
                       )}
                     </div>
                     <p className="shrink-0 text-sm tabular-nums text-ink">
-                      {formatMoney(line.unitPrice * line.quantity)}
+                      {money(line.unitPrice * line.quantity)}
                     </p>
                   </li>
                 ))}
@@ -303,22 +319,22 @@ export function CheckoutView() {
                 className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-control bg-ember px-6 text-base font-semibold text-on-ember transition-colors hover:bg-ember-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting
-                  ? "Placing your order…"
-                  : `Place order · ${formatMoney(summary.totals.total)}`}
+                  ? t("checkout.placing")
+                  : t("checkout.placeOrder", { total: money(summary.totals.total) })}
               </button>
 
               {showErrors && !serverError && (!detailsValid || timingError || !cardValid) && (
                 <p role="alert" className="mt-3 text-sm font-medium text-danger">
                   {!detailsValid
-                    ? "Please complete your details above."
+                    ? t("checkout.completeDetails")
                     : timingError
                       ? timingError
-                      : "Please check the card details above."}
+                      : t("validation.cardDetails")}
                 </p>
               )}
 
               <p className="mt-4 text-center text-xs text-ink-subtle">
-                No payment is taken and no card details are stored.
+                {t("checkout.noPaymentStored")}
               </p>
             </div>
           </aside>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import {
   TEST_CARD_NUMBER,
   formatCardNumber,
@@ -45,6 +47,7 @@ export function MockPaymentForm({
   disabled: boolean;
   onChange: (field: keyof CardDraft, value: string) => void;
 }) {
+  const t = useTranslations("checkout");
   const field = (
     name: keyof CardDraft,
     label: string,
@@ -83,7 +86,7 @@ export function MockPaymentForm({
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-xl font-semibold text-ink">Payment</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">{t("payment")}</h2>
         <span className="rounded-full bg-warning-soft px-2.5 py-1 text-xs font-semibold text-warning">
           Test mode
         </span>
@@ -91,11 +94,10 @@ export function MockPaymentForm({
 
       <div className="mt-3 rounded-control border border-warning bg-warning-soft p-3">
         <p className="text-sm font-medium text-warning">
-          Don&rsquo;t enter a real card.
+          {t("noRealCard")}
         </p>
         <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-          No payment is taken and nothing you type here is sent or saved. Use the
-          test card below.
+          {t("testCardBody")}
         </p>
         <button
           type="button"
@@ -108,17 +110,17 @@ export function MockPaymentForm({
           }}
           className="mt-3 min-h-9 rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
         >
-          Fill in the test card
+          {t("fillTestCard")}
         </button>
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {field(
           "cardholder",
-          "Cardholder name",
+          t("cardholder"),
           {
             type: "text",
-            placeholder: "Name on card",
+            placeholder: t("cardPlaceholderName"),
             onChange: (event) => onChange("cardholder", event.target.value),
           },
           "sm:col-span-2",
@@ -126,7 +128,7 @@ export function MockPaymentForm({
 
         {field(
           "number",
-          "Card number",
+          t("cardNumber"),
           {
             type: "text",
             inputMode: "numeric",
@@ -138,7 +140,7 @@ export function MockPaymentForm({
           "sm:col-span-2",
         )}
 
-        {field("expiry", "Expiry date", {
+        {field("expiry", t("expiry"), {
           type: "text",
           inputMode: "numeric",
           placeholder: "MM/YY",
@@ -146,7 +148,7 @@ export function MockPaymentForm({
           onChange: (event) => onChange("expiry", formatExpiry(event.target.value)),
         })}
 
-        {field("cvc", "CVC", {
+        {field("cvc", t("cvc"), {
           type: "text",
           inputMode: "numeric",
           placeholder: "123",

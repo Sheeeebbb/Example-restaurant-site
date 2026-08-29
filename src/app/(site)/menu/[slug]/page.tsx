@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,6 +36,7 @@ export async function generateMetadata({
 }
 
 export default async function ProductPage({ params }: PageProps<"/menu/[slug]">) {
+  const t = await getTranslations("menu");
   const { slug } = await params;
   const item = await getMenuItemBySlug(slug);
 
@@ -101,7 +103,7 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
             {!item.available && (
               <div className="absolute inset-0 flex items-center justify-center bg-surface/70">
                 <span className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-ink-inverse">
-                  Sold out
+                  {t("soldOut")}
                 </span>
               </div>
             )}
@@ -154,7 +156,7 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
 
           {item.allergens.length > 0 && (
             <div className="mt-6 rounded-card border border-line bg-surface p-5">
-              <h2 className="text-sm font-semibold text-ink">Allergens</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("allergens")}</h2>
               <p className="mt-2 text-sm capitalize leading-relaxed text-ink-muted">
                 {item.allergens.join(", ")}
               </p>

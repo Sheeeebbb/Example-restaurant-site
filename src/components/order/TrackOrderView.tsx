@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -23,6 +25,7 @@ import type { OrderStatus } from "@/lib/types";
  * a database, which is the backend stage.
  */
 export function TrackOrderView() {
+  const t = useTranslations("order");
   const router = useRouter();
   const orders = useOrderStore((state) => state.orders);
   const hasHydrated = useOrderStore((state) => state.hasHydrated);
@@ -87,11 +90,11 @@ export function TrackOrderView() {
     const reference = normalizeOrderReference(input);
 
     if (!isValidReferenceShape(reference)) {
-      setError("Order numbers look like UT-4K7PQ.");
+      setError(t("numbersLookLike"));
       return;
     }
     if (!orders[reference]) {
-      setError(`We can't find ${reference} in this browser.`);
+      setError(t("notInThisBrowser", { reference }));
       return;
     }
     router.push(`/order/${reference}`);
@@ -101,15 +104,15 @@ export function TrackOrderView() {
     <Container className="py-14 sm:py-20">
       <div className="max-w-xl">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          Track your order
+          {t("trackTitle")}
         </h1>
         <p className="mt-3 text-lg leading-relaxed text-ink-muted">
-          Enter the order number from your confirmation.
+          {t("trackLead")}
         </p>
 
         <form onSubmit={lookup} noValidate className="mt-6">
           <label htmlFor="reference" className="text-sm font-medium text-ink">
-            Order number
+            {t("orderNumber")}
           </label>
           <div className="mt-2 flex gap-2">
             <input
@@ -132,7 +135,7 @@ export function TrackOrderView() {
               disabled={!input.trim()}
               className="min-h-11 shrink-0 rounded-control bg-ember px-5 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Find order
+              {t("trackButton")}
             </button>
           </div>
           {error && (

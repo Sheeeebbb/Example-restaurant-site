@@ -2,6 +2,8 @@
 
 import { useCartStore } from "@/lib/cart/store";
 import { formatMoney } from "@/lib/money";
+import { useTranslations, useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
 import { findZone } from "@/lib/fulfillment/delivery";
 import { DELIVERY_ZONES, RESTAURANT } from "@/lib/config/restaurant";
 import type { FulfillmentType } from "@/lib/types";
@@ -28,27 +30,41 @@ const CHEAPEST_DELIVERY = Math.min(
   ...DELIVERY_ZONES.map((zone) => zone.deliveryFee),
 );
 
+/**
+ * The two modes. Values are the domain's; the words come from the catalogue.
+ *
+ * `detail` takes the translator and the formatted fee rather than building a
+ * sentence out of pieces — "{fee} · to your door" and "{fee} · tot aan je deur"
+ * put the same value in the same slot of two different sentences.
+ */
 const CHOICES: {
   value: FulfillmentType;
-  label: string;
-  detail: (fee: number | null) => string;
+  labelKey: string;
+  detail: (
+    t: (key: string, values?: Record<string, string | number>) => string,
+    fee: number | null,
+    money: (cents: number) => string,
+  ) => string;
 }[] = [
   {
     value: "delivery",
-    label: "Delivery",
-    detail: (fee) =>
+    labelKey: "delivery",
+    detail: (t, fee, money) =>
       fee === null
-        ? `From ${formatMoney(CHEAPEST_DELIVERY)} · to your door`
-        : `${formatMoney(fee)} · to your door`,
+        ? t("deliveryFrom", { fee: money(CHEAPEST_DELIVERY) })
+        : t("deliveryDetail", { fee: money(fee) }),
   },
   {
     value: "pickup",
-    label: "Pickup",
-    detail: () => "Free · collect from us",
+    labelKey: "pickup",
+    detail: (t) => t("pickupDetail"),
   },
 ];
 
 export function FulfillmentToggle() {
+  const t = useTranslations("cart");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, locale);
   const fulfillmentType = useCartStore((state) => state.fulfillmentType);
   const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
   const postalCode = useCartStore((state) => state.postalCode);
@@ -61,7 +77,7 @@ export function FulfillmentToggle() {
   return (
     <fieldset className="border-0 p-0">
       <legend className="font-display text-xl font-semibold text-ink">
-        How would you like it?
+        {t("howWouldYouLikeIt")}
       </legend>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -93,9 +109,9 @@ export function FulfillmentToggle() {
                 {isSelected && <span className="h-2 w-2 rounded-full bg-on-ember" />}
               </span>
               <span>
-                <span className="block font-semibold text-ink">{choice.label}</span>
+                <span className="block font-semibold text-ink">{t(choice.labelKey)}</span>
                 <span className="block text-sm text-ink-muted">
-                  {choice.detail(knownFee)}
+                  {choice.detail(t, knownFee, money)}
                 </span>
               </span>
             </label>

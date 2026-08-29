@@ -22,6 +22,13 @@
       "when": 1788008992176,
       "tag": "0002_menu_sort_order",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788022253465,
+      "tag": "0003_menu_translations",
+      "breakpoints": true
     }
   ]
 }

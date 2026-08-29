@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useCartCount } from "@/lib/cart/selectors";
@@ -26,6 +28,7 @@ import { useCartStore } from "@/lib/cart/store";
 const BUMP_MS = 420;
 
 export function CartButton() {
+  const t = useTranslations("nav");
   const count = useCartCount();
   const hydrated = useCartStore((state) => state.hasHydrated);
   const [bump, setBump] = useState(false);
@@ -78,7 +81,12 @@ export function CartButton() {
       </span>
 
       <span className="sr-only">
-        Cart, {count} {count === 1 ? "item" : "items"}
+        {/*
+          One plural-aware string. English needs "item"/"items"; Dutch needs
+          "artikel"/"artikelen" and a different word for empty — neither is
+          expressible by appending an "s".
+        */}
+        {t("cartWithCount", { count })}
       </span>
 
       <span

@@ -1,13 +1,15 @@
 import Link from "next/link";
+import { getTranslations, getLocale } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { Container } from "@/components/ui/Container";
 import { RESTAURANT, DELIVERY_ZONES } from "@/lib/config/restaurant";
 import { openingHoursSummary } from "@/lib/fulfillment/scheduling";
 
 const EXPLORE_LINKS = [
-  { href: "/menu", label: "Full menu" },
-  { href: "/about", label: "About us" },
-  { href: "/contact", label: "Contact" },
-  { href: "/order/track", label: "Track an order" },
+  { href: "/menu", key: "fullMenu" },
+  { href: "/about", key: "about" },
+  { href: "/contact", key: "contact" },
+  { href: "/order/track", key: "trackOrder" },
 ];
 
 /*
@@ -20,13 +22,16 @@ const EXPLORE_LINKS = [
  * listing it gives away no access.
  */
 const LEGAL_LINKS = [
-  { href: "/privacy", label: "Privacy policy" },
-  { href: "/terms", label: "Terms" },
-  { href: "/admin", label: "Staff sign in" },
+  { href: "/privacy", key: "privacy" },
+  { href: "/terms", key: "terms" },
+  { href: "/admin", key: "staffSignIn" },
 ];
 
-export function SiteFooter() {
-  const hours = openingHoursSummary();
+export async function SiteFooter() {
+  const t = await getTranslations("footer");
+  const locale = (await getLocale()) as Locale;
+  /* Weekday names come out in the reader's language; the hours are the same. */
+  const hours = openingHoursSummary(locale);
   const telHref = `tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`;
 
   return (
@@ -71,13 +76,15 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold text-ink">Opening hours</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("openingHours")}</h2>
             <dl className="mt-3 space-y-1 text-sm">
               {hours.map(({ day, hours: range }) => (
                 <div key={day} className="flex justify-between gap-4">
                   <dt className="text-ink-muted">{day}</dt>
-                  <dd className={range === "Closed" ? "text-ink-subtle" : "text-ink"}>
-                    {range}
+                  {/* An empty range means shut that day; the word for it is a
+                      translation, not something the scheduler should decide. */}
+                  <dd className={range === "" ? "text-ink-subtle" : "text-ink"}>
+                    {range === "" ? t("closed") : range}
                   </dd>
                 </div>
               ))}
@@ -92,7 +99,7 @@ export function SiteFooter() {
               36px is the size the social links above already use, so the
               footer gained a consistent touch target rather than a new one.
             */}
-            <h2 className="text-sm font-semibold text-ink">Explore</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("explore")}</h2>
             <ul className="mt-3 text-sm">
               {EXPLORE_LINKS.map((link) => (
                 <li key={link.href}>
@@ -100,13 +107,13 @@ export function SiteFooter() {
                     href={link.href}
                     className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   >
-                    {link.label}
+                    {t(link.key)}
                   </Link>
                 </li>
               ))}
             </ul>
 
-            <h2 className="mt-6 text-sm font-semibold text-ink">We deliver to</h2>
+            <h2 className="mt-6 text-sm font-semibold text-ink">{t("weDeliverTo")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-ink-muted">
               {DELIVERY_ZONES.map((zone) => (
                 <li key={zone.id}>{zone.name}</li>
@@ -115,7 +122,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold text-ink">Get in touch</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("getInTouch")}</h2>
             <ul className="mt-3 text-sm">
               <li>
                 <a
@@ -135,7 +142,7 @@ export function SiteFooter() {
               </li>
             </ul>
 
-            <h2 className="mt-6 text-sm font-semibold text-ink">Legal</h2>
+            <h2 className="mt-6 text-sm font-semibold text-ink">{t("legal")}</h2>
             <ul className="mt-3 text-sm">
               {LEGAL_LINKS.map((link) => (
                 <li key={link.href}>
@@ -143,7 +150,7 @@ export function SiteFooter() {
                     href={link.href}
                     className="inline-flex min-h-9 items-center text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                   >
-                    {link.label}
+                    {t(link.key)}
                   </Link>
                 </li>
               ))}

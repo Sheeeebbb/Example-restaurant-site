@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { RESTAURANT, DELIVERY_ZONES } from "@/lib/config/restaurant";
@@ -16,7 +17,9 @@ export const metadata: Metadata = {
  * that actually reach the restaurant instead of a form that silently discards
  * what people type. The form arrives with the backend.
  */
-export default function ContactPage() {
+export default async function ContactPage() {
+  const tf = await getTranslations("footer");
+  const tc = await getTranslations("checkout");
   const hours = openingHoursSummary();
   const telHref = `tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`;
 
@@ -49,7 +52,7 @@ export default function ContactPage() {
           </h2>
           <dl className="mt-4 space-y-4 text-sm">
             <div>
-              <dt className="text-ink-subtle">Phone</dt>
+              <dt className="text-ink-subtle">{tc("phone")}</dt>
               <dd className="mt-1">
                 <a
                   href={telHref}
@@ -115,7 +118,7 @@ export default function ContactPage() {
           className="rounded-card border border-line bg-surface p-6"
         >
           <h2 id="hours-heading" className="font-display text-xl font-semibold text-ink">
-            Opening hours
+            {tf("openingHours")}
           </h2>
           <dl className="mt-4 space-y-1 text-sm">
             {hours.map(({ day, hours: range }) => (

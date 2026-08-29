@@ -95,7 +95,7 @@ export async function resetTestDatabase(): Promise<void> {
 
   if (!catalogueReady) {
     await db.execute(sql`
-      TRUNCATE TABLE menu_options, option_groups, menu_items, categories, permissions
+      TRUNCATE TABLE menu_item_translations, category_translations, menu_options, option_groups, menu_items, categories, permissions
       RESTART IDENTITY CASCADE
     `);
     await syncCatalogue(db);

@@ -1,5 +1,6 @@
 import type { Cents } from "./types";
 import { RESTAURANT } from "./config/restaurant";
+import { DEFAULT_LOCALE, FORMATTING, type Locale } from "../i18n/config";
 
 /**
  * Every monetary operation in the app goes through this module.
@@ -8,24 +9,52 @@ import { RESTAURANT } from "./config/restaurant";
  * when it is rendered. Nothing upstream of the UI should ever hold a float.
  */
 
-const formatter = new Intl.NumberFormat(RESTAURANT.locale, {
-  style: "currency",
-  currency: RESTAURANT.currency,
-});
+/**
+ * One formatter per language, built once.
+ *
+ * The currency never changes — the restaurant charges euros to everyone — but
+ * how a euro is written does: English puts the symbol first and a point before
+ * the cents (€12.50), Dutch puts a space after the symbol and a comma
+ * (€ 12,50). Same number, same amount, different typography.
+ *
+ * `Intl` knows all of this; the alternative is hand-rolling separators per
+ * language and getting Swiss apostrophes wrong the day someone adds German.
+ */
+const formatters = new Map<string, Intl.NumberFormat>();
 
-/** 1234 → "$12.34" */
-export function formatMoney(cents: Cents): string {
-  return formatter.format(cents / 100);
+function formatterFor(locale: Locale): Intl.NumberFormat {
+  let formatter = formatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(FORMATTING[locale].money, {
+      style: "currency",
+      currency: RESTAURANT.currency,
+    });
+    formatters.set(locale, formatter);
+  }
+  return formatter;
+}
+
+/**
+ * 1250 → "12,50 €" in English, "€ 12,50" in Dutch.
+ *
+ * English keeps the restaurant's own `de-DE` rendering, which is what it always
+ * used and what this market reads. Only Dutch is new.
+ *
+ * The locale is presentation only. `cents` is what the order is charged, it is
+ * an integer, and nothing here rounds, converts or otherwise touches it.
+ */
+export function formatMoney(cents: Cents, locale: Locale = DEFAULT_LOCALE): string {
+  return formatterFor(locale).format(cents / 100);
 }
 
 /**
  * Formats a signed delta for option labels: "+$1.50", "−$0.50", or "" for zero.
  * Uses a real minus sign (U+2212) rather than a hyphen so it aligns with digits.
  */
-export function formatDelta(cents: Cents): string {
+export function formatDelta(cents: Cents, locale: Locale = DEFAULT_LOCALE): string {
   if (cents === 0) return "";
   const sign = cents > 0 ? "+" : "−";
-  return `${sign}${formatMoney(Math.abs(cents))}`;
+  return `${sign}${formatMoney(Math.abs(cents), locale)}`;
 }
 
 export function sumCents(values: Cents[]): Cents {

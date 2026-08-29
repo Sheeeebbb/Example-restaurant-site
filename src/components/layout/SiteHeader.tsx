@@ -1,16 +1,19 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
+import { LanguageSelector } from "@/components/layout/LanguageSelector";
 import { CartMenu } from "@/components/cart/CartMenu";
 import { resolveMenuPhotos } from "@/lib/data/photos";
 import { getMenuItems } from "@/lib/data/repository";
 import { RESTAURANT } from "@/lib/config/restaurant";
 
+/** Destinations are code; their names are translations. */
 const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/menu", label: "Menu" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-];
+  { href: "/", key: "home" },
+  { href: "/menu", key: "menu" },
+  { href: "/about", key: "about" },
+  { href: "/contact", key: "contact" },
+] as const;
 
 /**
  * Server component — only the cart badge needs interactivity, so the navigation
@@ -33,6 +36,7 @@ export async function SiteHeader() {
    * touches the filesystem — server work. Resolved here and handed down, the
    * same way the cart page does it, so the header's client half never fetches.
    */
+  const t = await getTranslations("nav");
   const items = await getMenuItems();
   const categoryByItemId = Object.fromEntries(
     items.map((item) => [item.id, item.categoryId]),
@@ -50,7 +54,7 @@ export async function SiteHeader() {
           */}
           <Link
             href="/"
-            aria-label={`${RESTAURANT.name} — home`}
+            aria-label={`${RESTAURANT.name} — ${t("home")}`}
             className="order-1 mr-auto flex items-center gap-2 font-display text-xl font-semibold tracking-tight text-ink sm:text-[1.375rem]"
           >
             <span
@@ -71,7 +75,7 @@ export async function SiteHeader() {
             two layouts.
           */}
           <nav
-            aria-label="Main"
+            aria-label={t("menu")}
             className="order-3 w-full lg:order-2 lg:w-auto"
           >
             <ul className="flex items-center gap-0.5 overflow-x-auto">
@@ -81,7 +85,7 @@ export async function SiteHeader() {
                     href={link.href}
                     className="inline-flex min-h-11 items-center whitespace-nowrap rounded-control px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
                   >
-                    {link.label}
+                    {t(link.key)}
                   </Link>
                 </li>
               ))}
@@ -98,7 +102,14 @@ export async function SiteHeader() {
             On a pointer device the cart also previews its contents on hover;
             see `CartMenu`. On touch it stays a plain link to the cart page.
           */}
+          {/*
+            The language selector sits with the cart rather than in the nav
+            list: it is a setting, not a destination, and putting it in the nav
+            would make it the fifth thing a screen reader reads out as somewhere
+            to go. Compact enough at 360px to share the row with the cart.
+          */}
           <div className="order-2 flex shrink-0 items-center gap-2 lg:order-3">
+            <LanguageSelector />
             <CartMenu
               photoMap={resolveMenuPhotos(items)}
               categoryByItemId={categoryByItemId}

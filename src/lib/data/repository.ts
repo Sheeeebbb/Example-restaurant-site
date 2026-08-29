@@ -3,6 +3,8 @@ import type { Category, MenuItem, Promotion } from "../types";
 import { getDb } from "../db/client";
 import * as t from "../db/schema";
 import { hydrateItems, loadMenuItemBySlug } from "../db/menu-queries";
+import { DEFAULT_LOCALE, type Locale } from "../../i18n/config";
+import { activeLocale } from "../../i18n/server";
 import { findPromotion } from "./promotions";
 
 /**
@@ -22,14 +24,37 @@ import { findPromotion } from "./promotions";
  * at request time any more.
  */
 
-export async function getCategories(): Promise<Category[]> {
+/**
+ * The category headings, in the request's language.
+ *
+ * Translations live in their own table and supply words only — the id, slug and
+ * sort order are the same in every language, so the menu's shape never depends
+ * on who is reading it.
+ */
+export async function getCategories(locale?: Locale): Promise<Category[]> {
   const db = getDb();
-  return db.select().from(t.categories).orderBy(asc(t.categories.sortOrder));
+  const active = locale ?? (await activeLocale());
+  const rows = await db.select().from(t.categories).orderBy(asc(t.categories.sortOrder));
+  if (active === DEFAULT_LOCALE) return rows;
+
+  const translations = await db
+    .select()
+    .from(t.categoryTranslations)
+    .where(eq(t.categoryTranslations.locale, active));
+  const byId = new Map(translations.map((row) => [row.categoryId, row]));
+
+  return rows.map((row) => {
+    const translated = byId.get(row.id);
+    return {
+      ...row,
+      name: translated?.name || row.name,
+      description: translated?.description || row.description,
+    };
+  });
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  const rows = await getDb().select().from(t.categories).where(eq(t.categories.id, id));
-  return rows[0] ?? null;
+  return (await getCategories()).find((category) => category.id === id) ?? null;
 }
 
 export interface MenuQuery {
@@ -40,8 +65,9 @@ export interface MenuQuery {
   featuredOnly?: boolean;
 }
 
-export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
+export async function getMenuItems(query: MenuQuery = {}, locale?: Locale): Promise<MenuItem[]> {
   const db = getDb();
+  const active = locale ?? (await activeLocale());
 
   /*
    * Filtered in SQL rather than in JavaScript. It matters more than it looks:
@@ -67,22 +93,23 @@ export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
 
-  return hydrateItems(db, items);
+  return hydrateItems(db, items, active);
 }
 
-export async function getMenuItemBySlug(slug: string): Promise<MenuItem | null> {
-  return loadMenuItemBySlug(getDb(), slug);
+export async function getMenuItemBySlug(slug: string, locale?: Locale): Promise<MenuItem | null> {
+  return loadMenuItemBySlug(getDb(), slug, locale ?? (await activeLocale()));
 }
 
-export async function getMenuItemsByIds(ids: string[]): Promise<MenuItem[]> {
+export async function getMenuItemsByIds(ids: string[], locale?: Locale): Promise<MenuItem[]> {
   if (ids.length === 0) return [];
   const db = getDb();
+  const active = locale ?? (await activeLocale());
   const items = await db
     .select()
     .from(t.menuItems)
     .where(inArray(t.menuItems.id, ids))
     .orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
-  return hydrateItems(db, items);
+  return hydrateItems(db, items, active);
 }
 
 export async function getPromotion(code: string): Promise<Promotion | null> {

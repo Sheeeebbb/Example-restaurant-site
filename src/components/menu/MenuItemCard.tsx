@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
+
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { FoodImage } from "./FoodImage";
@@ -17,8 +20,8 @@ import type { MenuItem } from "@/lib/types";
  * added straight from the grid any more — a customer sees the description,
  * allergens and options before committing, which is the point. That also
  * removed a real inconsistency: a dish with a required choice and no sensible
- * default (Spring Water: still or sparkling) used to render "Choose options"
- * where every other card said "Add to cart", because a one-tap add could not
+ * default (Spring Water: still or sparkling) used to render t("chooseOptions")
+ * where every other card said t("addToCart"), because a one-tap add could not
  * honestly be offered. With one interaction for every dish, the special case
  * has nothing left to be special about.
  *
@@ -42,6 +45,8 @@ export function MenuItemCard({
   photoSrc: string | null;
   priority?: boolean;
 }) {
+  const t = useTranslations("menu");
+  const locale = useLocale() as Locale;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLAnchorElement>(null);
   const wasOpen = useRef(false);
@@ -116,7 +121,7 @@ export function MenuItemCard({
           {!item.available && (
             <div className="absolute inset-0 flex items-center justify-center bg-surface/70">
               <span className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-ink-inverse">
-                Sold out
+                {t("soldOut")}
               </span>
             </div>
           )}
@@ -140,7 +145,7 @@ export function MenuItemCard({
               </Link>
             </h3>
             <p className="shrink-0 font-semibold tabular-nums text-ink">
-              {formatMoney(item.basePrice)}
+              {formatMoney(item.basePrice, locale)}
             </p>
           </div>
 
@@ -166,9 +171,9 @@ export function MenuItemCard({
           <p className="mt-auto pt-4 text-sm font-medium text-ember">
             {item.available
               ? item.optionGroups.length > 0
-                ? "Choose options"
-                : "View dish"
-              : "Unavailable tonight"}
+                ? t("chooseOptions")
+                : t("viewDish")
+              : t("unavailable")}
           </p>
         </div>
       </article>

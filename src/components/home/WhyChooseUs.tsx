@@ -1,10 +1,10 @@
+import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "./SectionHeading";
 
 const REASONS = [
   {
-    title: "Fresh Ingredients",
-    body: "Produce delivered every morning from Berlin suppliers we actually know. Nothing frozen, nothing reheated.",
+    key: "Fresh",
     icon: (
       <>
         <path d="M12 21c0-5 4-9 9-9-.4 5-4 9-9 9Z" />
@@ -14,8 +14,7 @@ const REASONS = [
     ),
   },
   {
-    title: "Fast Delivery",
-    body: "Most orders land within 25 minutes. You'll see a realistic time before you pay, not an optimistic one.",
+    key: "Fast",
     icon: (
       <>
         <circle cx="12" cy="12" r="9" />
@@ -24,8 +23,7 @@ const REASONS = [
     ),
   },
   {
-    title: "Easy Pickup",
-    body: "Order ahead, skip the queue, collect from the counter. No fee, and you can schedule it up to six days out.",
+    key: "Pickup",
     icon: (
       <>
         <path d="M5 8h14l-1.2 12H6.2L5 8Z" />
@@ -34,8 +32,7 @@ const REASONS = [
     ),
   },
   {
-    title: "Made With Care",
-    body: "Everything is cooked to order by chefs who take it personally. Allergens are listed on every single dish.",
+    key: "Care",
     icon: (
       <>
         <path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9Z" />
@@ -44,20 +41,21 @@ const REASONS = [
   },
 ];
 
-export function WhyChooseUs() {
+export async function WhyChooseUs() {
+  const t = await getTranslations("home");
   return (
     <section aria-labelledby="why-heading" className="border-y border-line bg-surface">
       <Container className="py-16 sm:py-24">
         <SectionHeading
           id="why-heading"
-          eyebrow="Why Urban Table"
-          title="Made properly. Ready when you are."
+          eyebrow={t("whyTitle")}
+          title={t("whyLead")}
           align="center"
         />
 
         <ul className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {REASONS.map((reason) => (
-            <li key={reason.title} className="text-center sm:text-left">
+            <li key={reason.key} className="text-center sm:text-left">
               <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-ember-soft text-ember sm:mx-0">
                 <svg
                   viewBox="0 0 24 24"
@@ -73,10 +71,10 @@ export function WhyChooseUs() {
                 </svg>
               </span>
               <h3 className="mt-4 font-display text-lg font-semibold text-ink">
-                {reason.title}
+                {t(`why${reason.key}Title`)}
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                {reason.body}
+                {t(`why${reason.key}Body`)}
               </p>
             </li>
           ))}

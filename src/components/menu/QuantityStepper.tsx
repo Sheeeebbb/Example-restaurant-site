@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { RESTAURANT } from "@/lib/config/restaurant";
 
 /**
@@ -19,7 +21,7 @@ import { RESTAURANT } from "@/lib/config/restaurant";
 export function QuantityStepper({
   quantity,
   onChange,
-  label = "Quantity",
+  label,
   allowRemove = false,
   itemName,
   size = "md",
@@ -33,22 +35,28 @@ export function QuantityStepper({
   itemName?: string;
   size?: "sm" | "md";
 }) {
+  const t = useTranslations("product");
   const max = RESTAURANT.ordering.maxQuantityPerLine;
   const removes = allowRemove && quantity <= 1;
-  const of = itemName ? ` of ${itemName}` : "";
   const box = size === "sm" ? "h-9 w-9 text-base" : "h-11 w-11 text-lg";
   const readout = size === "sm" ? "w-8 text-sm" : "w-10 text-base";
 
   return (
     <div className="flex items-center gap-3">
-      {label && <span className="text-sm font-medium text-ink">{label}</span>}
+      {label !== "" && (
+        <span className="text-sm font-medium text-ink">{label ?? t("quantity")}</span>
+      )}
       <div className="flex items-center rounded-control border border-line-strong bg-surface">
         <button
           type="button"
           onClick={() => onChange(quantity - 1)}
           disabled={quantity <= 1 && !allowRemove}
           aria-label={
-            removes ? `Remove ${itemName ?? "item"} from your cart` : `Decrease quantity${of}`
+            removes
+              ? t("removeFromCart", { item: itemName ?? "item" })
+              : itemName
+                ? t("decreaseOf", { item: itemName })
+                : t("decrease")
           }
           className={`flex items-center justify-center rounded-l-control font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${box} ${
             removes ? "text-ink hover:bg-danger-soft hover:text-danger" : "text-ink hover:bg-surface-sunken"
@@ -69,7 +77,7 @@ export function QuantityStepper({
           type="button"
           onClick={() => onChange(quantity + 1)}
           disabled={quantity >= max}
-          aria-label={`Increase quantity${of}`}
+          aria-label={itemName ? t("increaseOf", { item: itemName }) : t("increase")}
           className={`flex items-center justify-center rounded-r-control font-medium text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-40 ${box}`}
         >
           <span aria-hidden="true">+</span>

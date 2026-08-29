@@ -1,6 +1,8 @@
 "use client";
 
 import { formatMoney } from "@/lib/money";
+import { useTranslations, useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import { DiscountRow } from "./PromoCodeForm";
 import type { CartSummary } from "@/lib/cart/selectors";
@@ -24,12 +26,15 @@ export function OrderSummary({
   fulfillmentType: FulfillmentType;
 }) {
   const { totals, promotion, waiver, deliveryFeeBeforeWaiver } = summary;
+  const t = useTranslations("cart");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, locale);
 
   return (
     <dl className="space-y-2 text-sm">
       <div className="flex justify-between gap-4">
-        <dt className="text-ink-muted">Subtotal</dt>
-        <dd className="tabular-nums text-ink">{formatMoney(totals.subtotal)}</dd>
+        <dt className="text-ink-muted">{t("subtotal")}</dt>
+        <dd className="tabular-nums text-ink">{money(totals.subtotal)}</dd>
       </div>
 
       {promotion && totals.discount > 0 && (
@@ -38,19 +43,19 @@ export function OrderSummary({
 
       {fulfillmentType === "delivery" && (
         <div className="flex justify-between gap-4">
-          <dt className="text-ink-muted">Delivery</dt>
+          <dt className="text-ink-muted">{t("deliveryFee")}</dt>
           <dd className="tabular-nums text-ink">
             {totals.deliveryFee === 0 ? (
               <>
                 {deliveryFeeBeforeWaiver > 0 && (
                   <span className="mr-2 text-ink-subtle line-through">
-                    {formatMoney(deliveryFeeBeforeWaiver)}
+                    {money(deliveryFeeBeforeWaiver)}
                   </span>
                 )}
-                <span className="font-medium text-herb">Free</span>
+                <span className="font-medium text-herb">{t("deliveryFeeFree")}</span>
               </>
             ) : (
-              formatMoney(totals.deliveryFee)
+              money(totals.deliveryFee)
             )}
           </dd>
         </div>
@@ -58,21 +63,19 @@ export function OrderSummary({
 
       {waiver === "threshold" && (
         <p className="text-xs text-herb">
-          Free delivery on orders over{" "}
-          {formatMoney(RESTAURANT.fees.freeDeliveryThreshold)}.
+          {t("freeDeliveryOver", { threshold: money(RESTAURANT.fees.freeDeliveryThreshold) })}
         </p>
       )}
 
       <div className="flex items-baseline justify-between gap-4 border-t border-line pt-3">
-        <dt className="font-display text-lg font-semibold text-ink">Total</dt>
+        <dt className="font-display text-lg font-semibold text-ink">{t("total")}</dt>
         <dd className="font-display text-lg font-semibold tabular-nums text-ink">
-          {formatMoney(totals.total)}
+          {money(totals.total)}
         </dd>
       </div>
 
       <p className="text-xs text-ink-subtle">
-        Includes {formatMoney(totals.tax)} VAT at{" "}
-        {RESTAURANT.fees.taxRatePercent}%.
+        {t("includesVat", { amount: money(totals.tax), rate: RESTAURANT.fees.taxRatePercent })}
       </p>
     </dl>
   );

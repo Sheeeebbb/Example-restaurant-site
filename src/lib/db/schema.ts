@@ -134,6 +134,52 @@ export const menuOptions = pgTable(
   (table) => [index("menu_options_group_idx").on(table.optionGroupId)],
 );
 
+/**
+ * Menu content in another language.
+ *
+ * ── Why a table and not `name_nl` columns ───────────────────────────────────
+ * A column per language means a schema migration every time the restaurant
+ * adds one. A row per language means an INSERT. The whole point of this system
+ * is that a third language is data, not a deployment.
+ *
+ * ── What this is NOT ────────────────────────────────────────────────────────
+ * It is not a second menu item. The dish keeps one `id`, one `slug`, one price,
+ * one availability flag and one row in every order that ever contained it.
+ * This table carries words, and nothing a translation says can change what was
+ * bought or what it cost. A missing row means the dish shows its English name,
+ * never a blank one.
+ *
+ * The slug is deliberately absent: it is in URLs and in links customers have
+ * already shared, so it stays language-neutral.
+ */
+export const menuItemTranslations = pgTable(
+  "menu_item_translations",
+  {
+    menuItemId: text("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id, { onDelete: "cascade" }),
+    /** BCP 47, matching `src/i18n/config.ts`. */
+    locale: text("locale").notNull(),
+    name: text("name"),
+    description: text("description"),
+  },
+  (table) => [primaryKey({ columns: [table.menuItemId, table.locale] })],
+);
+
+/** The same, for the six category headings. */
+export const categoryTranslations = pgTable(
+  "category_translations",
+  {
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    locale: text("locale").notNull(),
+    name: text("name"),
+    description: text("description"),
+  },
+  (table) => [primaryKey({ columns: [table.categoryId, table.locale] })],
+);
+
 /** Dish photographs staff uploaded. The shipped ones are files in public/menu/. */
 export const menuImages = pgTable("menu_images", {
   id: text("id").primaryKey(),

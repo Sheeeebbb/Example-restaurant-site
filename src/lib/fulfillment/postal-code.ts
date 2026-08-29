@@ -1,4 +1,5 @@
 import { DELIVERY_AREA } from "../config/restaurant";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * The one place that decides whether a postal code can be delivered to.
@@ -73,8 +74,7 @@ export function normalizePostalCode(input: string): string {
   return input.trim().replace(/[\s-]/g, "").toUpperCase();
 }
 
-const OUTSIDE_AREA_MESSAGE =
-  "We're sorry, we don't currently deliver to this postal code.";
+
 
 /**
  * The shape of a well-formed code: the area digits, then up to the configured
@@ -91,7 +91,11 @@ const WELL_FORMED = new RegExp(
     : `^(\\d{${DELIVERY_AREA.digits}})()$`,
 );
 
-export function checkPostalCode(input: string): PostalCodeCheck {
+export function checkPostalCode(
+  input: string,
+  /** Defaults to English; the address form passes the customer's language. */
+  t: Messages = englishMessages,
+): PostalCodeCheck {
   const normalized = normalizePostalCode(input);
   const nothing = { normalized, area: null, letters: null, value: null, deliverable: false };
 
@@ -110,7 +114,7 @@ export function checkPostalCode(input: string): PostalCodeCheck {
     return {
       ...nothing,
       status: "malformed",
-      message: `Postal codes here are ${DELIVERY_AREA.digits} digits.`,
+      message: t("delivery.postalCodeLength", { digits: DELIVERY_AREA.digits }),
     };
   }
 
@@ -128,7 +132,7 @@ export function checkPostalCode(input: string): PostalCodeCheck {
     letters: suffix.length === DELIVERY_AREA.letters ? suffix : null,
     value,
     deliverable: inside,
-    message: inside ? null : OUTSIDE_AREA_MESSAGE,
+    message: inside ? null : t("delivery.outsideArea"),
   };
 }
 
@@ -144,10 +148,13 @@ export function isDeliverablePostalCode(input: string): boolean {
  * says nothing while they are still filling the form, but has to say something
  * once they have asked to move on.
  */
-export function postalCodeError(input: string): string | null {
-  const check = checkPostalCode(input);
+export function postalCodeError(
+  input: string,
+  t: Messages = englishMessages,
+): string | null {
+  const check = checkPostalCode(input, t);
   if (check.status === "empty" || check.status === "incomplete") {
-    return "Please enter your postal code.";
+    return t("delivery.postalCodeRequired");
   }
   return check.message;
 }
