@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import { useCartStore } from "@/lib/cart/store";
 import {
   generateSlots,
@@ -18,6 +18,21 @@ import { RESTAURANT } from "@/lib/config/restaurant";
  * stops taking orders. Nothing offered here is unreachable at the moment it is
  * rendered — but a slot can go stale while the form is being filled in, so the
  * choice is re-validated before the customer continues.
+ *
+ * ── Why a day, then a time ──────────────────────────────────────────────────
+ * Six days at fifteen-minute intervals is around 240 bookable slots. As one
+ * flat <select> that is a single control holding 240 options: on Android it
+ * opens a full-screen list that has to be flicked through, and picking next
+ * Tuesday evening means scrolling past two hundred times that are not it.
+ *
+ * `generateSlots` has always returned the slots grouped by day — the old
+ * picker flattened that grouping into <optgroup>s and threw the hierarchy
+ * away. This renders it instead: pick a day, then pick from that day's forty
+ * or so times. Nothing about which slots exist has changed.
+ *
+ * Both groups are native radios, so arrow keys move within a group, Tab moves
+ * between them, and a screen reader announces "3 of 6, selected" without any
+ * ARIA to keep in sync.
  */
 export function TimingPicker({ error }: { error: string | null }) {
   const timing = useCartStore((state) => state.timing);
@@ -40,6 +55,39 @@ export function TimingPicker({ error }: { error: string | null }) {
   }, [fulfillmentType, postalCode]);
 
   const noSlots = days.length === 0;
+
+  /* Unique per instance, so two pickers on one page cannot share a radio group. */
+  const groupId = useId();
+
+  /**
+   * The day whose times are on screen — a view, not a choice.
+   *
+   * Kept apart from `scheduledFor` on purpose. Looking at Saturday is not the
+   * same as booking Saturday, so browsing away from a slot the customer already
+   * picked must not silently unpick it; the chip for that day keeps its marker
+   * and the summary keeps naming it, until they tap a different time.
+   */
+  const [browsing, setBrowsing] = useState<string | null>(null);
+
+  /** The day the booked slot belongs to, or null when nothing is booked yet. */
+  const selectedDate =
+    days.find((day) => day.slots.some((slot) => slot.value === scheduledFor))?.date ?? null;
+
+  /*
+   * Which day is open, in order of precedence: the one being browsed, the one
+   * holding the booking, then the first available. Each is checked against the
+   * current list rather than trusted — switching to delivery regenerates the
+   * days, and the one being browsed may no longer be among them.
+   */
+  const activeDate =
+    (browsing && days.some((day) => day.date === browsing) ? browsing : null) ??
+    selectedDate ??
+    days[0]?.date ??
+    null;
+
+  const activeDay = days.find((day) => day.date === activeDate) ?? null;
+  const selectedDay = days.find((day) => day.date === selectedDate) ?? null;
+  const selectedSlot = selectedDay?.slots.find((slot) => slot.value === scheduledFor) ?? null;
 
   return (
     <fieldset className="border-0 p-0">
@@ -101,30 +149,132 @@ export function TimingPicker({ error }: { error: string | null }) {
         })}
       </div>
 
-      {timing === "scheduled" && !noSlots && (
-        <div className="mt-4">
-          <label htmlFor="slot" className="text-sm font-medium text-ink">
-            Pick a time
-          </label>
-          <select
-            id="slot"
-            value={scheduledFor ?? ""}
-            onChange={(event) => setScheduledFor(event.target.value || undefined)}
-            aria-invalid={Boolean(error) || undefined}
+      {timing === "scheduled" && !noSlots && activeDay && (
+        <div className="mt-5">
+          {/* ── Which day ───────────────────────────────────────────────── */}
+          <fieldset className="border-0 p-0">
+            <legend className="text-sm font-medium text-ink">Which day?</legend>
+            {/*
+              A wrapping grid rather than a scrolling strip. Six days fit in two
+              rows on the narrowest phone, so nothing is hidden off the edge —
+              a horizontal scroller puts later days somewhere the customer has
+              to discover, and horizontal flicks fight the page's own scroll.
+            */}
+            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+              {days.map((day) => {
+                const isActive = day.date === activeDate;
+                const holdsBooking = day.date === selectedDate;
+                return (
+                  <label
+                    key={day.date}
+                    className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center rounded-control border px-2 py-2 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ember ${
+                      isActive
+                        ? "border-ember bg-ember-soft"
+                        : "border-line bg-surface hover:border-line-strong"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`${groupId}-day`}
+                      value={day.date}
+                      checked={isActive}
+                      onChange={() => setBrowsing(day.date)}
+                      className="sr-only"
+                    />
+                    {/*
+                      The chip reads "Today / 28 Aug" to a sighted customer, but
+                      that is two fragments to a screen reader. The whole date
+                      goes in the accessible name instead.
+                    */}
+                    <span className="sr-only">
+                      {day.longLabel}
+                      {holdsBooking && selectedSlot ? `, booked for ${selectedSlot.label}` : ""}
+                    </span>
+                    <span aria-hidden="true" className="block text-sm font-semibold text-ink">
+                      {day.label}
+                    </span>
+                    <span aria-hidden="true" className="block text-xs text-ink-muted">
+                      {day.dateLabel}
+                    </span>
+                    {/* Which day holds the booking, when it is not the one on screen. */}
+                    {holdsBooking && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ember"
+                      />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/* ── Which time ──────────────────────────────────────────────── */}
+          {/*
+            The error belongs to the group of times, not to any one of them —
+            `aria-invalid` means nothing on a radio, and describing all forty
+            with the same message would repeat it forty times.
+          */}
+          <fieldset
+            className="mt-5 border-0 p-0"
             aria-describedby={error ? "timing-error" : undefined}
-            className="mt-2 min-h-11 w-full rounded-control border border-line bg-surface px-3 text-sm text-ink"
           >
-            <option value="">Choose a time…</option>
-            {days.map((day) => (
-              <optgroup key={day.date} label={day.label}>
-                {day.slots.map((slot) => (
-                  <option key={slot.value} value={slot.value}>
-                    {slot.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            <legend className="text-sm font-medium text-ink">
+              What time on {activeDay.longLabel}?
+            </legend>
+            {/*
+              Four across on a phone: at 360px that is a 76px target per time,
+              comfortably past the 44px a fingertip needs, with a gap between
+              them so a near-miss lands on nothing rather than on 19:45.
+            */}
+            <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+              {activeDay.slots.map((slot) => {
+                const isSelected = slot.value === scheduledFor;
+                return (
+                  <label
+                    key={slot.value}
+                    className={`flex min-h-12 cursor-pointer items-center justify-center rounded-control border text-sm tabular-nums transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ember ${
+                      isSelected
+                        ? "border-ember bg-ember font-semibold text-on-ember"
+                        : "border-line bg-surface text-ink hover:border-line-strong"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`${groupId}-time`}
+                      value={slot.value}
+                      checked={isSelected}
+                      onChange={() => setScheduledFor(slot.value)}
+                      className="sr-only"
+                    />
+                    <span className="sr-only">
+                      {activeDay.longLabel} at {slot.label}
+                    </span>
+                    <span aria-hidden="true">{slot.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/*
+            What is actually booked, spelled out. The grid shows the day being
+            looked at; this is the only place that always names the day and time
+            the order will carry, which matters most when they differ.
+          */}
+          <p
+            role="status"
+            className={`mt-4 rounded-control p-3 text-sm ${
+              selectedSlot
+                ? "bg-ember-soft font-medium text-ink"
+                : "bg-surface-sunken text-ink-muted"
+            }`}
+          >
+            {selectedSlot && selectedDay
+              ? `Ready ${selectedDay.label.toLowerCase() === "today" || selectedDay.label.toLowerCase() === "tomorrow" ? selectedDay.label.toLowerCase() : `on ${selectedDay.longLabel}`} at ${selectedSlot.label}.`
+              : "Pick a time above."}
+          </p>
+
           <p className="mt-2 text-xs text-ink-subtle">
             Times are shown for {RESTAURANT.address.city}.
           </p>

@@ -24,6 +24,18 @@ export interface DaySlots {
   date: string;
   /** "Today", "Tomorrow", or "Saturday". */
   label: string;
+  /**
+   * "29 Aug" — the calendar date on its own, to sit under `label`.
+   *
+   * "Today" and "Saturday" tell a customer which day they are picking but not
+   * which date, and a booking is a date.
+   */
+  dateLabel: string;
+  /**
+   * "Friday 29 August" — the whole thing, for the selection summary and for
+   * anyone listening to a screen reader rather than looking at a chip.
+   */
+  longLabel: string;
   slots: TimeSlot[];
 }
 
@@ -100,6 +112,27 @@ function toDateKey(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * Formatted from the same local `Date` the slots were generated from.
+ *
+ * Deliberately not re-parsed from the "2026-08-22" key: `new Date("2026-08-22")`
+ * is UTC midnight, which is the previous day in any negative-offset zone, and
+ * the label would name a date the slots underneath it do not belong to.
+ */
+function formatDayParts(date: Date): { dateLabel: string; longLabel: string } {
+  return {
+    dateLabel: new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+      day: "numeric",
+      month: "short",
+    }).format(date),
+    longLabel: new Intl.DateTimeFormat(RESTAURANT.dateLocale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(date),
+  };
+}
+
 function dayLabel(date: Date, today: Date): string {
   const diff = Math.round(
     (new Date(toDateKey(date)).getTime() - new Date(toDateKey(today)).getTime()) /
@@ -159,7 +192,12 @@ export function generateSlots(
     }
 
     if (slots.length > 0) {
-      days.push({ date: toDateKey(day), label: dayLabel(day, now), slots });
+      days.push({
+        date: toDateKey(day),
+        label: dayLabel(day, now),
+        ...formatDayParts(day),
+        slots,
+      });
     }
   }
 

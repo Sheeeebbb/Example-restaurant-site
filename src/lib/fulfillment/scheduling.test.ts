@@ -73,6 +73,46 @@ describe("lead time", () => {
   });
 });
 
+/**
+ * The picker shows a day and then that day's times, so each day has to carry
+ * enough to name itself. "Saturday" alone is not a date, and two Saturdays sit
+ * inside the booking window's reach.
+ */
+describe("day labels", () => {
+  it("names the calendar date as well as the day", () => {
+    const days = generateSlots(WED_LUNCH, "pickup", null);
+    expect(days[0].label).toBe("Today");
+    expect(days[0].dateLabel).toBe("19 Aug");
+    expect(days[0].longLabel).toBe("Wednesday 19 August");
+  });
+
+  it("labels every day it returns", () => {
+    for (const day of generateSlots(WED_LUNCH, "pickup", null)) {
+      expect(day.dateLabel, day.date).toBeTruthy();
+      expect(day.longLabel, day.date).toBeTruthy();
+    }
+  });
+
+  it("names the date the day's slots actually fall on", () => {
+    // The label is formatted from the local Date, not re-parsed from the key:
+    // `new Date("2026-08-22")` is UTC midnight, and would name the day before
+    // in any negative-offset timezone.
+    for (const day of generateSlots(WED_LUNCH, "pickup", null)) {
+      const first = new Date(day.slots[0].value);
+      const dayOfMonth = String(first.getDate());
+      expect(day.longLabel, day.date).toContain(dayOfMonth);
+      expect(day.dateLabel, day.date).toContain(dayOfMonth);
+    }
+  });
+
+  it("gives each day in the window a distinct date", () => {
+    // Two chips reading the same thing would be a coin toss for the customer.
+    const days = generateSlots(WED_LUNCH, "pickup", null);
+    expect(new Set(days.map((day) => day.longLabel)).size).toBe(days.length);
+    expect(new Set(days.map((day) => day.date)).size).toBe(days.length);
+  });
+});
+
 describe("generateSlots", () => {
   it("never offers a slot earlier than the lead time allows", () => {
     const days = generateSlots(WED_LUNCH, "pickup", null);
