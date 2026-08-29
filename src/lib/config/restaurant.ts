@@ -132,6 +132,18 @@ export const DELIVERY_AREA = {
   minPostalCode: 8930,
   maxPostalCode: 8940,
   digits: 4,
+  /**
+   * How many letters may follow the digits.
+   *
+   * A Dutch postal code is four digits and two letters — 8934 AB. The digits
+   * name an area and are what decides delivery; the letters narrow it to one
+   * side of one street, which is the only thing that makes a street lookup
+   * possible. They are optional everywhere: a customer who types 8934 and
+   * stops gets the same delivery verdict they always did.
+   *
+   * Set to 0 for a market whose codes are digits only.
+   */
+  letters: 2,
 } as const;
 
 /**

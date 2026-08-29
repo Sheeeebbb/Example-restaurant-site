@@ -10,10 +10,32 @@
 /** What a lookup can tell us about a postal code. Fields are optional because services differ. */
 export interface AddressSuggestion {
   city?: string;
-  /** Only some services resolve a street from a postal code alone. */
+  /**
+   * Only some services resolve a street from a postal code alone.
+   *
+   * With Dutch codes it depends on how much the customer typed: the four
+   * digits cover a whole town, so a street only appears once the two letters
+   * are there — or when the digits happen to cover a single street.
+   */
   street?: string;
   /** Province, state, region — whatever the market calls it. */
   region?: string;
+  /**
+   * The administrative municipality, where it differs from the city.
+   *
+   * Shown as confirmation, never written into a field: the order form has no
+   * municipality of its own, and inventing one would change what an address
+   * means everywhere downstream.
+   */
+  municipality?: string;
+  /**
+   * Streets to choose from when the code covers more than one and no single
+   * answer is right.
+   *
+   * Empty or absent when there is nothing to choose — either one street was
+   * certain (and is in `street`) or there were far too many to be a menu.
+   */
+  streetOptions?: string[];
 }
 
 /** The fields autofill is allowed to touch. The house number is never one of them. */

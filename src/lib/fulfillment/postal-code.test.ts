@@ -87,6 +87,62 @@ describe("checkPostalCode", () => {
     }
   });
 
+  /**
+   * The letters are the half of a Dutch postal code that makes a street
+   * knowable. They are optional, they never change the delivery verdict, and
+   * everything that was malformed before still is.
+   */
+  describe("the Dutch letter suffix", () => {
+    it("accepts a full code and keeps the same delivery verdict as its digits", () => {
+      const withLetters = checkPostalCode("8934AB");
+      const digitsOnly = checkPostalCode("8934");
+      expect(withLetters.status).toBe(digitsOnly.status);
+      expect(withLetters.deliverable).toBe(digitsOnly.deliverable);
+      expect(withLetters.value).toBe(digitsOnly.value);
+    });
+
+    it("reads the same code however it is spaced or cased", () => {
+      for (const input of ["8934AB", "8934ab", "8934 AB", "8934 ab", " 8934-Ab "]) {
+        const check = checkPostalCode(input);
+        expect(check.normalized, input).toBe("8934AB");
+        expect(check.area, input).toBe("8934");
+        expect(check.letters, input).toBe("AB");
+        expect(check.deliverable, input).toBe(true);
+      }
+    });
+
+    it("keeps the delivery decision on the digits alone", () => {
+      // Outside the area with letters is still outside; inside is still inside.
+      expect(checkPostalCode("1234AB").deliverable).toBe(false);
+      expect(checkPostalCode("1234AB").status).toBe("outside");
+      expect(checkPostalCode("8930ZZ").deliverable).toBe(true);
+      expect(checkPostalCode("8941ZZ").deliverable).toBe(false);
+    });
+
+    it("does not scold anyone midway through typing their own suffix", () => {
+      // "8934A" is a real code being typed, not a wrong one. The area is
+      // already complete, so the verdict stands and the message stays silent.
+      const check = checkPostalCode("8934A");
+      expect(check.status).toBe("deliverable");
+      expect(check.message).toBeNull();
+      // Half a suffix narrows nothing, so it is not offered to a lookup.
+      expect(check.letters).toBeNull();
+    });
+
+    it("still rejects everything that was malformed before", () => {
+      for (const bad of ["abcd", "89a0", "8 9 3 X", "89305", "8934ABC", "AB8934"]) {
+        expect(checkPostalCode(bad).status, bad).toBe("malformed");
+        expect(checkPostalCode(bad).deliverable, bad).toBe(false);
+      }
+    });
+
+    it("exposes the area and suffix separately, for lookup and for delivery", () => {
+      expect(checkPostalCode("8934AB")).toMatchObject({ area: "8934", letters: "AB" });
+      expect(checkPostalCode("8934")).toMatchObject({ area: "8934", letters: null });
+      expect(checkPostalCode("893")).toMatchObject({ area: null, letters: null });
+    });
+  });
+
   it("rejects a code that is too long", () => {
     expect(checkPostalCode("89305").status).toBe("malformed");
   });

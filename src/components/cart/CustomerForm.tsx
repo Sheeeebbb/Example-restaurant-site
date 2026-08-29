@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useOrderDraftStore } from "@/lib/order/draft-store";
 import { useCartStore } from "@/lib/cart/store";
 import { FIELD_LIMITS, type DraftField, type FieldErrors } from "@/lib/order/validation";
@@ -50,10 +50,21 @@ const CONTACT_FIELDS: FieldSpec[] = [
   { name: "email", label: "Email", type: "email", autoComplete: "email", inputMode: "email", span: "half" },
 ];
 
+/** "8930 AB" where the area allows letters, "8930" where it does not. */
+const POSTAL_CODE_PLACEHOLDER =
+  DELIVERY_AREA.letters > 0
+    ? `${DELIVERY_AREA.minPostalCode} AB`
+    : String(DELIVERY_AREA.minPostalCode);
+
 const ADDRESS_FIELDS: FieldSpec[] = [
   { name: "street", label: "Street", autoComplete: "address-line1", span: "full" },
   { name: "houseNumber", label: "House / apartment number", autoComplete: "address-line2", span: "half" },
-  { name: "postalCode", label: "Postal code", autoComplete: "postal-code", inputMode: "numeric", placeholder: String(DELIVERY_AREA.minPostalCode), span: "half" },
+  /*
+   * Text, not numeric: a Dutch postal code ends in two letters, and a numeric
+   * keypad cannot type them. The digits alone still work — the letters are what
+   * turn "somewhere in Leeuwarden" into a street.
+   */
+  { name: "postalCode", label: "Postal code", autoComplete: "postal-code", inputMode: "text", placeholder: POSTAL_CODE_PLACEHOLDER, span: "half" },
   { name: "city", label: "City", autoComplete: "address-level2", span: "full" },
 ];
 
@@ -82,6 +93,17 @@ export function CustomerForm({
   /** The last code we asked about, so one lookup per code rather than per keystroke. */
   const lookedUp = useRef("");
 
+  /**
+   * What the lookup is doing, purely so the customer can see it.
+   *
+   * "missing" is not an error: the register does not know that code, which for
+   * a new-build street is simply true. Nothing here can block continuing.
+   */
+  const [lookup, setLookup] = useState<{
+    state: "idle" | "loading" | "found" | "missing" | "failed";
+    suggestion: AddressSuggestion | null;
+  }>({ state: "idle", suggestion: null });
+
   const handleChange = (field: DraftField, value: string) => {
     setField(field, value);
     if (field === "postalCode") setPostalCode(value);
@@ -94,25 +116,43 @@ export function CustomerForm({
   /*
    * Address autofill.
    *
-   * Runs only for a complete, in-area code, and asks the server rather than a
-   * lookup service directly so no API key is ever shipped to the browser. With
-   * nothing configured the endpoint answers 501 and this quietly fills nothing
-   * in — the customer types their address as before. See
-   * `lib/fulfillment/address-lookup.ts` for connecting a real service.
+   * Runs for any complete postal code, whether or not we deliver to it. Those
+   * are separate questions: the green line under the field answers one, this
+   * answers the other, and a customer outside the area still deserves to be
+   * told what their own address is before being told we cannot reach it.
+   *
+   * Keyed on the full normalised code, so typing the two letters after the
+   * digits asks again — and gets a street where the digits alone got a town.
+   *
+   * The browser asks the server, never the lookup service, so no credential is
+   * ever shipped to it. With lookup switched off the endpoint is not called at
+   * all and the customer types their address exactly as before.
    */
   useEffect(() => {
     if (!addressLookupEnabled) return;
-    if (fulfillmentType !== "delivery" || !postal.deliverable) return;
-    if (lookedUp.current === postal.normalized) return;
-    lookedUp.current = postal.normalized;
+    if (fulfillmentType !== "delivery" || postal.area === null) return;
+    /*
+     * Keyed on what would actually be sent, not on what is in the box.
+     *
+     * Half a letter suffix narrows nothing, so "8934" and "8934A" both ask
+     * about 8934 — and asking twice for the same answer is a request spent on
+     * a free public service for nothing. Typing a full code out therefore
+     * makes two lookups (one at the digits, one at the letters), not three.
+     */
+    const query = `${postal.area}${postal.letters ?? ""}`;
+    if (lookedUp.current === query) return;
+    lookedUp.current = query;
 
     let cancelled = false;
+    setLookup({ state: "loading", suggestion: null });
 
     void (async () => {
       let suggestion: AddressSuggestion | null = null;
+      let failed = false;
+
       try {
         const response = await fetch(
-          `/api/address-lookup?postalCode=${encodeURIComponent(postal.normalized)}`,
+          `/api/address-lookup?postalCode=${encodeURIComponent(query)}`,
         );
         if (response.ok) {
           const body = (await response.json()) as {
@@ -120,12 +160,23 @@ export function CustomerForm({
             suggestion?: AddressSuggestion | null;
           };
           suggestion = body.ok ? (body.suggestion ?? null) : null;
+        } else {
+          // 501 means lookup is switched off, which is not a failure worth
+          // reporting; anything else is the service being unwell.
+          failed = response.status !== 501;
         }
       } catch {
-        // A lookup that fails is not an error the customer needs to hear about.
+        failed = true;
       }
 
-      if (cancelled || !suggestion) return;
+      if (cancelled) return;
+
+      setLookup({
+        state: failed ? "failed" : suggestion ? "found" : "missing",
+        suggestion,
+      });
+
+      if (!suggestion) return;
 
       // Read the draft at apply time, not from the closure: the customer has
       // very likely typed something while the request was in flight.
@@ -140,7 +191,7 @@ export function CustomerForm({
     return () => {
       cancelled = true;
     };
-  }, [addressLookupEnabled, fulfillmentType, postal.deliverable, postal.normalized, setField]);
+  }, [addressLookupEnabled, fulfillmentType, postal.area, postal.letters, setField]);
 
   /*
    * What sits under the postal-code field.
@@ -152,6 +203,27 @@ export function CustomerForm({
    */
   const postalMessage = (showErrors ? errors.postalCode : null) ?? postal.message;
   const postalConfirmed = !postalMessage && postal.deliverable;
+
+  /*
+   * The place the code resolved to, as confirmation rather than as a field.
+   *
+   * Municipality and province are shown here and written nowhere: the order
+   * form has a city and no municipality, and adding one would change what an
+   * address means in the kitchen, on the driver's board and in every order
+   * already placed. Seeing "Leeuwarden · gemeente Leeuwarden" is enough to know
+   * the lookup found the right place.
+   */
+  const lookupPlace = (() => {
+    const found = lookup.suggestion;
+    if (!found) return null;
+    const parts = [found.street, found.city].filter(Boolean);
+    const extra = [
+      found.municipality ? `gemeente ${found.municipality}` : null,
+      found.region,
+    ].filter(Boolean);
+    if (parts.length === 0 && extra.length === 0) return null;
+    return [parts.join(", "), extra.join(" · ")].filter(Boolean).join(" · ");
+  })();
 
   const postalFeedback: ReactNode = postalConfirmed ? (
     <p className="mt-1.5 flex items-center gap-1.5 text-sm text-herb">
@@ -173,6 +245,66 @@ export function CustomerForm({
       </span>
     </p>
   ) : null;
+
+  /**
+   * What the lookup has to say, under the postal-code field.
+   *
+   * Every one of these is advisory. None of them sets an error, none blocks
+   * continuing, and the customer can ignore all of them and type the address
+   * themselves — which is the whole contract: autofill is an accelerator, and
+   * a broken accelerator must still leave a working form.
+   */
+  const lookupNote: ReactNode =
+    !addressLookupEnabled || fulfillmentType !== "delivery" ? null : lookup.state ===
+      "loading" ? (
+      <p className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-muted" role="status">
+        <span
+          aria-hidden="true"
+          className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-transparent"
+        />
+        <span>Looking up this postal code&hellip;</span>
+      </p>
+    ) : lookup.state === "found" && lookupPlace ? (
+      <p className="mt-1.5 text-sm text-ink-muted" role="status">
+        {lookupPlace}
+      </p>
+    ) : lookup.state === "missing" ? (
+      <p className="mt-1.5 text-sm text-ink-muted" role="status">
+        We couldn&rsquo;t look this one up — please fill in the address below.
+      </p>
+    ) : lookup.state === "failed" ? (
+      <p className="mt-1.5 text-sm text-ink-muted" role="status">
+        Address lookup isn&rsquo;t responding — please fill in the address below.
+      </p>
+    ) : null;
+
+  /**
+   * The street menu, for a code that covers a handful of streets rather than
+   * one. Picking counts as typing it: the field becomes the customer's, and
+   * nothing later overwrites it.
+   */
+  const streetChoices =
+    lookup.state === "found" && !draft.street.trim()
+      ? (lookup.suggestion?.streetOptions ?? [])
+      : [];
+
+  const streetPicker: ReactNode = streetChoices.length > 0 && (
+    <div className="mt-2">
+      <p className="text-sm text-ink-muted">Which street?</p>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        {streetChoices.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => handleChange("street", option)}
+            className="inline-flex min-h-9 items-center rounded-control border border-line-strong bg-surface px-3 text-sm text-ink transition-colors hover:border-ember hover:text-ember"
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   const renderField = (spec: FieldSpec) => {
     /*
@@ -218,6 +350,8 @@ export function CustomerForm({
           </p>
         )}
         {spec.name === "postalCode" && postalFeedback}
+        {spec.name === "postalCode" && lookupNote}
+        {spec.name === "street" && streetPicker}
       </div>
     );
   };

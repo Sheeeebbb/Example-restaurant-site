@@ -10,7 +10,7 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 481 unit tests, including regressions for every defect found in QA
+npm test         # 525 unit tests, including regressions for every defect found in QA
 npm run build
 ```
 
@@ -31,6 +31,41 @@ ALLOWED_DEV_ORIGINS="urban-table.ngrok-free.app,*.trycloudflare.com" npm run dev
 ```
 
 Development only. `next start` serves any host and ignores all of this.
+
+### Configuration
+
+Everything the application reads from the environment is listed in
+[`.env.example`](.env.example). Copy it to `.env.local` to change any of it.
+**Nothing in it is required** — the defaults run the whole site.
+
+The one worth knowing about is address lookup.
+
+### Address lookup
+
+Typing a postal code on the checkout address form fills in the street and city.
+The provider is [PDOK Locatieserver](https://www.pdok.nl), the Dutch Kadaster's
+own geocoding service over the **BAG** (Basisregistratie Adressen en Gebouwen) —
+the statutory register that legally defines every Dutch address. It needs **no
+API key and no account**, so there is nothing to configure to make it work.
+
+How much it can tell you depends on how much of the code is typed:
+
+| Typed | What comes back |
+| --- | --- |
+| `8934` | City, municipality, province. The four digits cover a whole town — 59 streets in this one — so no street is filled. |
+| `8934 AB` | Street, city, municipality, province. |
+
+A code covering only a few streets — common in villages — offers them as a
+short menu to pick from instead of guessing.
+
+Two things it deliberately never does: it never fills the **house number**, and
+it never overwrites a field the customer has already typed in. Lookup is also
+entirely separate from the delivery area: a code outside 8930–8940 is still
+looked up, and still told separately that we do not deliver there.
+
+Set `ADDRESS_LOOKUP_CONTACT` before real traffic — the Kadaster's fair-use
+policy asks callers to identify themselves. Set `ADDRESS_LOOKUP_PROVIDER=none`
+to switch lookup off; the form then behaves exactly as it did before it existed.
 
 ---
 
