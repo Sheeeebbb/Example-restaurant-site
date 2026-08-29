@@ -6,6 +6,8 @@ import * as t from "./schema";
 import { claimDelivery, saveOrder, getOrder, listOrders } from "../order/order-repository";
 import { createRole, createStaff, listRoles, signIn, staffForToken } from "../staff/staff-repository";
 import type { Order } from "../types";
+import { getMenuItems } from "../data/repository";
+import { CATEGORIES, MENU_ITEMS } from "../data/menu";
 
 /**
  * The properties that only a real database can have.
@@ -112,6 +114,35 @@ describe("an order, written and read back", () => {
     await saveOrder(anOrder("UT-NEW"));
     const all = await listOrders();
     expect(all[0].reference).toBe("UT-NEW");
+  });
+});
+
+/**
+ * A menu is composed, not alphabetised.
+ *
+ * When the menu moved out of the seed array and into Postgres the read path
+ * ordered by `id` — an internal identifier — and five of the six categories
+ * silently reshuffled, putting the flagship burger second. Nothing failed; the
+ * menu was just in an order nobody had chosen. This is the guard.
+ */
+describe("menu ordering", () => {
+  it("serves each category in the order the menu was written in", async () => {
+    const live = await getMenuItems();
+    for (const category of CATEGORIES) {
+      const served = live.filter((item) => item.categoryId === category.id).map((i) => i.name);
+      const composed = MENU_ITEMS.filter((item) => item.categoryId === category.id).map((i) => i.name);
+      expect(served, category.name).toEqual(composed);
+    }
+  });
+
+  it("puts the whole menu in the composed order, not by id", async () => {
+    const live = await getMenuItems();
+    expect(live.map((item) => item.id)).toEqual(MENU_ITEMS.map((item) => item.id));
+  });
+
+  it("keeps a category's own items together and in order", async () => {
+    const burgers = (await getMenuItems({ category: "burgers" })).map((i) => i.name);
+    expect(burgers[0]).toBe("Urban Classic Burger");
   });
 });
 

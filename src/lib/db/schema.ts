@@ -77,8 +77,21 @@ export const menuItems = pgTable(
     available: boolean("available").notNull().default(true),
     featured: boolean("featured").notNull().default(false),
     kitchenMinutes: integer("kitchen_minutes").notNull().default(0),
+    /**
+     * Where the dish sits within its category, as the menu was written.
+     *
+     * A menu is composed, not alphabetised: the flagship burger leads the
+     * burgers, and the water is last among the drinks. Without this the read
+     * path falls back to ordering by `id`, which is an internal identifier and
+     * produces an order nobody chose — that is exactly what happened when this
+     * moved off the seed array, and five of six categories silently reshuffled.
+     */
+    sortOrder: integer("sort_order").notNull().default(0),
   },
-  (table) => [index("menu_items_category_idx").on(table.categoryId)],
+  (table) => [
+    index("menu_items_category_idx").on(table.categoryId),
+    index("menu_items_sort_idx").on(table.sortOrder),
+  ],
 );
 
 /**

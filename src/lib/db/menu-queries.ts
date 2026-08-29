@@ -119,7 +119,7 @@ export async function hydrateItems(
 
 /** Every menu item, in a stable order. */
 export async function loadMenu(db: Db | Tx): Promise<MenuItem[]> {
-  const items = await db.select().from(t.menuItems).orderBy(asc(t.menuItems.id));
+  const items = await db.select().from(t.menuItems).orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
   return hydrateItems(db, items);
 }
 

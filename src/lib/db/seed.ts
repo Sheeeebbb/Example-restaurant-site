@@ -55,7 +55,7 @@ export async function syncCatalogue(db: Db | Tx = getDb()): Promise<void> {
       });
   }
 
-  for (const item of MENU_ITEMS) {
+  for (const [index, item] of MENU_ITEMS.entries()) {
     await db
       .insert(t.menuItems)
       .values({
@@ -72,6 +72,7 @@ export async function syncCatalogue(db: Db | Tx = getDb()): Promise<void> {
         available: item.available,
         featured: item.featured,
         kitchenMinutes: item.kitchenMinutes,
+        sortOrder: index,
       })
       /*
        * Note what is NOT overwritten: `available`. Staff mark a dish sold out
@@ -92,6 +93,7 @@ export async function syncCatalogue(db: Db | Tx = getDb()): Promise<void> {
           allergens: item.allergens,
           featured: item.featured,
           kitchenMinutes: item.kitchenMinutes,
+          sortOrder: index,
         },
       });
 

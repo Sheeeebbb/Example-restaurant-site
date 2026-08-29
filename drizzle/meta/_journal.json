@@ -15,6 +15,13 @@
       "when": 1787980015031,
       "tag": "0001_drop_status_event_actor_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788008992176,
+      "tag": "0002_menu_sort_order",
+      "breakpoints": true
     }
   ]
 }

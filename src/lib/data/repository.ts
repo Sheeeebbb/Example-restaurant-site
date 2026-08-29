@@ -65,7 +65,7 @@ export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
     .select()
     .from(t.menuItems)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(asc(t.menuItems.id));
+    .orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
 
   return hydrateItems(db, items);
 }
@@ -81,7 +81,7 @@ export async function getMenuItemsByIds(ids: string[]): Promise<MenuItem[]> {
     .select()
     .from(t.menuItems)
     .where(inArray(t.menuItems.id, ids))
-    .orderBy(asc(t.menuItems.id));
+    .orderBy(asc(t.menuItems.sortOrder), asc(t.menuItems.id));
   return hydrateItems(db, items);
 }
 
