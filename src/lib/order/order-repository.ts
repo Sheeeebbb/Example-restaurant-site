@@ -1,5 +1,8 @@
+import { and, eq } from "drizzle-orm";
 import type { Order, OrderStatus } from "../types";
-import { getStore } from "../server/store";
+import { getDb } from "../db/client";
+import * as t from "../db/schema";
+import { loadOrderByReference, loadOrders, writeOrder } from "../db/order-queries";
 import { canRevert, canTransition, nextStatus } from "./transitions";
 import { explainRefusal, explainRevertRefusal, statusLabel } from "./status";
 import { openRefund, settleRefund } from "./refund";
@@ -7,36 +10,44 @@ import { openRefund, settleRefund } from "./refund";
 /**
  * Order persistence.
  *
- * SERVER ONLY, and async throughout even though it currently resolves from a
- * Map — the same rule the menu repository follows. Swapping in a database
- * changes these function bodies and nothing that calls them.
+ * SERVER ONLY. This is what lets the customer's order and the kitchen's order
+ * be the same order — and, now that it is Postgres, the same order tomorrow.
  *
- * This is what lets the customer's order and the kitchen's order be the same
- * order. Before it existed, orders lived only in the customer's browser tab,
- * so staff could never have seen one.
+ * ── Where the concurrency guarantees moved to ───────────────────────────────
+ * Against a Map, "read then write with no await in between" was a real
+ * guarantee: Node runs one request's synchronous code to completion. Against a
+ * database it is worth nothing — two instances have two event loops, and even
+ * one instance now awaits mid-operation.
+ *
+ * So both racing operations became conditional writes, and the database decides
+ * the winner:
+ *
+ *   • a status change is `UPDATE … WHERE reference = $ref AND status = $from`,
+ *     so a second staff member pressing the same button finds zero rows
+ *     updated and is told the order moved.
+ *   • a delivery claim is `INSERT INTO delivery_assignments … ON CONFLICT DO
+ *     NOTHING`, so the primary key decides it and the loser inserts nothing.
+ *
+ * Neither can be lost to a race, and neither depends on there being one process.
  */
 
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+/** Writes the whole order graph in one transaction. */
 export async function saveOrder(order: Order): Promise<Order> {
-  getStore().orders.set(order.reference, clone(order));
+  await getDb().transaction(async (tx) => writeOrder(tx, order));
   return clone(order);
 }
 
 export async function getOrder(reference: string): Promise<Order | null> {
-  const found = getStore().orders.get(reference);
-  return found ? clone(found) : null;
+  return loadOrderByReference(getDb(), reference);
 }
 
 /** Newest first — the order a kitchen wants to see a queue in. */
 export async function listOrders(): Promise<Order[]> {
-  return clone(
-    [...getStore().orders.values()].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    ),
-  );
+  return loadOrders(getDb());
 }
 
 /**
@@ -104,8 +115,8 @@ export async function transitionOrder(
     actor?: { id: string; name: string; roles?: string[] };
   } = {},
 ): Promise<OrderTransitionResult> {
-  const store = getStore();
-  const existing = store.orders.get(reference);
+  const db = getDb();
+  const existing = await loadOrderByReference(db, reference);
   if (!existing) {
     return { ok: false, reason: "not-found", error: "No such order." };
   }
@@ -197,8 +208,42 @@ export async function transitionOrder(
     ...(cancelling ? { cancellationReason: reason, cancelledAt: at } : {}),
   };
 
+  /*
+   * The guarded write.
+   *
+   * `WHERE status = $from` is what makes the check above binding rather than
+   * advisory: between reading the order and writing it, another staff member on
+   * another instance may have moved it. If they did, this updates zero rows and
+   * the caller is told what actually happened — the same answer `expectedFrom`
+   * gives, now enforced where it cannot be raced.
+   */
+  const applied = await db.transaction(async (tx) => {
+    const moved = await tx
+      .update(t.orders)
+      .set({ status: to })
+      .where(and(eq(t.orders.reference, reference), eq(t.orders.status, from)))
+      .returning({ id: t.orders.id });
+    if (moved.length === 0) return false;
+    await writeOrder(tx, cancelling ? { ...updated, refund: openRefund(updated, at) } : updated);
+    return true;
+  });
+
+  if (!applied) {
+    const current = await loadOrderByReference(db, reference);
+    return {
+      ok: false,
+      reason: "conflict",
+      error: current
+        ? `Someone else moved this order while you were looking at it — it is now "${statusLabel(
+            current.status,
+            fulfillmentType,
+          )}".`
+        : "No such order.",
+      ...(current ? { order: current } : {}),
+    };
+  }
+
   if (!cancelling) {
-    store.orders.set(reference, updated);
     return { ok: true, order: clone(updated) };
   }
 
@@ -218,18 +263,31 @@ export async function transitionOrder(
    * process dies mid-call.
    */
   const opened = openRefund(updated, at);
-  store.orders.set(reference, { ...updated, refund: opened });
-
   const settled = await settleRefund(updated, opened);
 
-  // Re-read rather than writing `updated` back: minutes of wall-clock may have
-  // passed inside the provider call, and whatever else has happened to this
-  // order in the meantime is not ours to discard. Only the refund is.
-  const current = store.orders.get(reference) ?? updated;
-  const finished: Order = { ...current, refund: settled };
-  store.orders.set(reference, finished);
+  /*
+   * Re-read rather than writing `updated` back: minutes of wall-clock may have
+   * passed inside the provider call, and whatever else has happened to this
+   * order in the meantime is not ours to discard. Only the refund is — so only
+   * the refund row is written, rather than the whole graph.
+   */
+  const refundRow = {
+    orderId: updated.id,
+    provider: settled.provider,
+    status: settled.status,
+    reference: settled.reference ?? null,
+    amount: settled.amount,
+    initiatedAt: new Date(settled.initiatedAt),
+    settledAt: settled.settledAt ? new Date(settled.settledAt) : null,
+    failureMessage: settled.failureMessage ?? null,
+  };
+  await db
+    .insert(t.orderRefunds)
+    .values(refundRow)
+    .onConflictDoUpdate({ target: t.orderRefunds.orderId, set: refundRow });
 
-  return { ok: true, order: clone(finished) };
+  const finished = await loadOrderByReference(db, reference);
+  return { ok: true, order: finished ?? { ...updated, refund: settled } };
 }
 
 /**
@@ -243,7 +301,7 @@ export async function advanceOrder(
   expectedFrom?: OrderStatus,
   actor?: { id: string; name: string; roles?: string[] },
 ): Promise<OrderTransitionResult> {
-  const existing = getStore().orders.get(reference);
+  const existing = await loadOrderByReference(getDb(), reference);
   if (!existing) {
     return { ok: false, reason: "not-found", error: "No such order." };
   }
@@ -340,61 +398,95 @@ export async function claimDelivery(
   reference: string,
   staffId: string,
 ): Promise<ClaimResult> {
-  const store = getStore();
+  const db = getDb();
 
-  // ── begin critical section: no `await` until the write is done ──
-  const existing = store.orders.get(reference);
-  if (!existing) {
-    return { ok: false, reason: "not-found", error: "No such order." };
-  }
-  if (existing.fulfillment.type !== "delivery") {
-    return {
-      ok: false,
-      reason: "not-deliverable",
-      error: "That order is being collected from the counter, not delivered.",
-    };
-  }
-  if (existing.status === "cancelled" || existing.status === "completed") {
-    return {
-      ok: false,
-      reason: "not-deliverable",
-      error: "That order is finished. There is nothing to deliver.",
-    };
-  }
-  if (existing.assignedStaffId && existing.assignedStaffId !== staffId) {
-    return {
-      ok: false,
-      reason: "taken",
-      error: "Another driver got there first — this delivery is already assigned.",
-    };
-  }
-  if (existing.assignedStaffId === staffId) {
-    // Idempotent: a double tap is the same claim, not an error.
-    return { ok: true, order: clone(existing) };
-  }
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({
+        id: t.orders.id,
+        status: t.orders.status,
+        fulfillmentType: t.orders.fulfillmentType,
+      })
+      .from(t.orders)
+      .where(eq(t.orders.reference, reference));
 
-  const claimed: Order = {
-    ...existing,
-    assignedStaffId: staffId,
-    assignedAt: new Date().toISOString(),
-  };
-  store.orders.set(reference, claimed);
-  // ── end critical section ──
+    const order = rows[0];
+    if (!order) {
+      return { ok: false, reason: "not-found", error: "No such order." } as const;
+    }
+    if (order.fulfillmentType !== "delivery") {
+      return {
+        ok: false,
+        reason: "not-deliverable",
+        error: "That order is being collected from the counter, not delivered.",
+      } as const;
+    }
+    if (order.status === "cancelled" || order.status === "completed") {
+      return {
+        ok: false,
+        reason: "not-deliverable",
+        error: "That order is finished. There is nothing to deliver.",
+      } as const;
+    }
 
-  return { ok: true, order: clone(claimed) };
+    /*
+     * The claim itself: one statement, and the primary key decides it.
+     *
+     * Two drivers pressing Accept in the same instant both run this. Postgres
+     * serialises them on the row, the first inserts, and the second's
+     * `ON CONFLICT DO NOTHING` returns nothing at all. The loser finds out from
+     * its own write rather than from a read taken beforehand, which is the only
+     * version of this that is safe across two instances.
+     */
+    const inserted = await tx
+      .insert(t.deliveryAssignments)
+      .values({ orderId: order.id, staffId, assignedAt: new Date() })
+      .onConflictDoNothing()
+      .returning({ staffId: t.deliveryAssignments.staffId });
+
+    if (inserted.length === 0) {
+      const held = await tx
+        .select({ staffId: t.deliveryAssignments.staffId })
+        .from(t.deliveryAssignments)
+        .where(eq(t.deliveryAssignments.orderId, order.id));
+
+      // Idempotent: a double tap by the same driver is the same claim.
+      if (held[0]?.staffId === staffId) {
+        const current = await loadOrderByReference(tx, reference);
+        return current
+          ? ({ ok: true, order: current } as const)
+          : ({ ok: false, reason: "not-found", error: "No such order." } as const);
+      }
+      return {
+        ok: false,
+        reason: "taken",
+        error: "Another driver got there first — this delivery is already assigned.",
+      } as const;
+    }
+
+    const claimed = await loadOrderByReference(tx, reference);
+    return claimed
+      ? ({ ok: true, order: claimed } as const)
+      : ({ ok: false, reason: "not-found", error: "No such order." } as const);
+  });
 }
 
 /** Hands a delivery back to the pool. Only ever the driver's own, or a manager's doing. */
 export async function releaseDelivery(reference: string): Promise<ClaimResult> {
-  const store = getStore();
-  const existing = store.orders.get(reference);
-  if (!existing) return { ok: false, reason: "not-found", error: "No such order." };
+  const db = getDb();
+  const rows = await db
+    .select({ id: t.orders.id })
+    .from(t.orders)
+    .where(eq(t.orders.reference, reference));
+  if (rows.length === 0) {
+    return { ok: false, reason: "not-found", error: "No such order." };
+  }
 
-  const released: Order = { ...existing };
-  delete released.assignedStaffId;
-  delete released.assignedAt;
-  store.orders.set(reference, released);
-  return { ok: true, order: clone(released) };
+  await db.delete(t.deliveryAssignments).where(eq(t.deliveryAssignments.orderId, rows[0].id));
+  const released = await loadOrderByReference(db, reference);
+  return released
+    ? { ok: true, order: released }
+    : { ok: false, reason: "not-found", error: "No such order." };
 }
 
 /**
@@ -412,8 +504,8 @@ export async function releaseDelivery(reference: string): Promise<ClaimResult> {
 export async function retryRefund(
   reference: string,
 ): Promise<{ ok: true; order: Order } | { ok: false; error: string }> {
-  const store = getStore();
-  const existing = store.orders.get(reference);
+  const db = getDb();
+  const existing = await loadOrderByReference(db, reference);
   if (!existing) return { ok: false, error: "No such order." };
 
   if (existing.status !== "cancelled") {
@@ -433,8 +525,22 @@ export async function retryRefund(
 
   const settled = await settleRefund(existing, { ...refund, status: "pending" });
 
-  const current = store.orders.get(reference) ?? existing;
-  const updated: Order = { ...current, refund: settled };
-  store.orders.set(reference, updated);
-  return { ok: true, order: clone(updated) };
+  // Only the refund row, for the same reason as in `transitionOrder`.
+  const refundRow = {
+    orderId: existing.id,
+    provider: settled.provider,
+    status: settled.status,
+    reference: settled.reference ?? null,
+    amount: settled.amount,
+    initiatedAt: new Date(settled.initiatedAt),
+    settledAt: settled.settledAt ? new Date(settled.settledAt) : null,
+    failureMessage: settled.failureMessage ?? null,
+  };
+  await db
+    .insert(t.orderRefunds)
+    .values(refundRow)
+    .onConflictDoUpdate({ target: t.orderRefunds.orderId, set: refundRow });
+
+  const updated = await loadOrderByReference(db, reference);
+  return { ok: true, order: updated ?? { ...existing, refund: settled } };
 }

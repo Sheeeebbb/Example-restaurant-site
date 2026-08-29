@@ -3,7 +3,7 @@ import { cancelOrder, advanceOrder, getOrder, saveOrder } from "./order-reposito
 import { openRefund } from "./refund";
 import { customerRefundNotice, staffRefundNotice } from "./refund-copy";
 import { MockPaymentProvider } from "../payments/mock";
-import { resetStore } from "../server/store";
+import { resetTestDatabase } from "../db/test-support";
 import type { Order, OrderStatus, RefundStatus } from "../types";
 
 /**
@@ -46,7 +46,7 @@ const CANCELLABLE: OrderStatus[] = [
   "outForDelivery",
 ];
 
-beforeEach(() => resetStore());
+beforeEach(async () => resetTestDatabase());
 afterEach(() => {
   delete process.env.MOCK_REFUND_OUTCOME;
 });

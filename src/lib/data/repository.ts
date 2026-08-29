@@ -1,6 +1,8 @@
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Category, MenuItem, Promotion } from "../types";
-import { CATEGORIES } from "./menu";
-import { getStore } from "../server/store";
+import { getDb } from "../db/client";
+import * as t from "../db/schema";
+import { hydrateItems, loadMenuItemBySlug } from "../db/menu-queries";
 import { findPromotion } from "./promotions";
 
 /**
@@ -14,22 +16,20 @@ import { findPromotion } from "./promotions";
  * Nothing outside this folder imports `./menu` directly — components go through
  * these functions, so there is exactly one place to swap.
  *
- * Items now come from the mutable server store rather than the seed module, so
- * a change staff make in the admin area is visible on the customer menu
- * immediately. `./menu` is the factory default the store is seeded from.
+ * Items come from Postgres, so a change staff make in the admin area is visible
+ * on the customer menu immediately — and survives the process that served it.
+ * `./menu` is the factory default the database is seeded from; nothing reads it
+ * at request time any more.
  */
 
-/** Defensive copy, so a caller mutating a result cannot corrupt the seed data. */
-function clone<T>(value: T): T {
-  return structuredClone(value);
-}
-
 export async function getCategories(): Promise<Category[]> {
-  return clone(CATEGORIES).sort((a, b) => a.sortOrder - b.sortOrder);
+  const db = getDb();
+  return db.select().from(t.categories).orderBy(asc(t.categories.sortOrder));
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
-  return clone(CATEGORIES.find((category) => category.id === id) ?? null);
+  const rows = await getDb().select().from(t.categories).where(eq(t.categories.id, id));
+  return rows[0] ?? null;
 }
 
 export interface MenuQuery {
@@ -41,29 +41,56 @@ export interface MenuQuery {
 }
 
 export async function getMenuItems(query: MenuQuery = {}): Promise<MenuItem[]> {
-  let items = clone(getStore().menu);
+  const db = getDb();
 
+  /*
+   * Filtered in SQL rather than in JavaScript. It matters more than it looks:
+   * the category page used to load every dish and discard most of them, which
+   * is free against a Map and is a full table scan plus its option rows against
+   * a database.
+   */
+  const conditions = [];
   if (query.category) {
-    const category = CATEGORIES.find((entry) => entry.slug === query.category);
-    if (!category) return [];
-    items = items.filter((item) => item.categoryId === category.id);
+    const category = await db
+      .select({ id: t.categories.id })
+      .from(t.categories)
+      .where(eq(t.categories.slug, query.category));
+    if (category.length === 0) return [];
+    conditions.push(eq(t.menuItems.categoryId, category[0].id));
   }
+  if (query.availableOnly) conditions.push(eq(t.menuItems.available, true));
+  if (query.featuredOnly) conditions.push(eq(t.menuItems.featured, true));
 
-  if (query.availableOnly) items = items.filter((item) => item.available);
-  if (query.featuredOnly) items = items.filter((item) => item.featured);
+  const items = await db
+    .select()
+    .from(t.menuItems)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(asc(t.menuItems.id));
 
-  return items;
+  return hydrateItems(db, items);
 }
 
 export async function getMenuItemBySlug(slug: string): Promise<MenuItem | null> {
-  return clone(getStore().menu.find((item) => item.slug === slug) ?? null);
+  return loadMenuItemBySlug(getDb(), slug);
 }
 
 export async function getMenuItemsByIds(ids: string[]): Promise<MenuItem[]> {
-  const wanted = new Set(ids);
-  return clone(getStore().menu.filter((item) => wanted.has(item.id)));
+  if (ids.length === 0) return [];
+  const db = getDb();
+  const items = await db
+    .select()
+    .from(t.menuItems)
+    .where(inArray(t.menuItems.id, ids))
+    .orderBy(asc(t.menuItems.id));
+  return hydrateItems(db, items);
 }
 
 export async function getPromotion(code: string): Promise<Promotion | null> {
-  return clone(findPromotion(code));
+  /*
+   * Still from the code module, deliberately. Promotions are a marketing
+   * fixture with no runtime editor, and giving them a table nothing writes to
+   * would be a migration to maintain for no capability gained. When a
+   * promotions editor exists, this is the one line that changes.
+   */
+  return structuredClone(findPromotion(code));
 }

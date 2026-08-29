@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { placeOrder, type PlaceOrderRequest } from "@/lib/order/place-order";
 import { saveOrder } from "@/lib/order/order-repository";
+import { openRefund, settleRefund } from "@/lib/order/refund";
 
 /**
  * The checkout endpoint.
@@ -36,10 +37,65 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  // Persist server-side so the kitchen can see it. Before this existed an order
-  // lived only in the customer's browser tab, where no member of staff could
-  // ever have reached it.
-  await saveOrder(result.order);
+  /*
+   * Persist server-side so the kitchen can see it. Before this existed an order
+   * lived only in the customer's browser tab, where no member of staff could
+   * ever have reached it.
+   *
+   * ── The dangerous moment ────────────────────────────────────────────────
+   * `placeOrder` has already charged the card. If this write fails — the
+   * database is down, the disk is full — the customer has paid and there is no
+   * order: nobody will cook it, and nobody will know it was ever meant to
+   * exist. That is the single worst outcome this endpoint has, and it is worse
+   * than either "no order" or "no charge" on their own.
+   *
+   * So a failed write gives the money back. The refund goes through the same
+   * provider path as a cancellation, which means it is a real request whose
+   * real answer is reported — this cannot claim a refund the provider did not
+   * confirm, and the customer is told which of the two happened.
+   */
+  try {
+    await saveOrder(result.order);
+  } catch (error) {
+    const { reference } = result.order.payment;
+    console.error(
+      `[checkout] PAID BUT NOT SAVED — payment ${reference}, order ${result.order.reference}:`,
+      error,
+    );
+
+    let refunded = false;
+    try {
+      const settled = await settleRefund(
+        result.order,
+        openRefund(result.order, new Date().toISOString()),
+      );
+      refunded = settled.status === "succeeded";
+      console.error(
+        `[checkout] refund for ${reference}: ${settled.status}${
+          settled.failureMessage ? ` — ${settled.failureMessage}` : ""
+        }`,
+      );
+    } catch (refundError) {
+      console.error(`[checkout] refund for ${reference} threw:`, refundError);
+    }
+
+    /*
+     * 503 and the truth. The payment reference is included because it is the
+     * one thing that lets the restaurant find this in the provider's dashboard
+     * — it identifies a transaction, not a person, and the customer needs to be
+     * able to quote it. Nothing about the failure itself is echoed back.
+     */
+    return NextResponse.json(
+      {
+        ok: false,
+        error: refunded
+          ? "We couldn't save your order and have refunded the payment. Nothing has been charged — please try again in a few minutes."
+          : "We couldn't save your order. Please contact us before trying again so we can check the payment.",
+        paymentReference: reference,
+      },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json(result, { status: 201 });
 }

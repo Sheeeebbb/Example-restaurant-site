@@ -8,7 +8,7 @@ import {
   type MenuItemInput,
 } from "./menu-admin";
 import { looksLikeSessionToken, shouldUseSecureCookie } from "./auth";
-import { resetStore } from "../server/store";
+import { resetTestDatabase, menuWasModified } from "../db/test-support";
 import { getMenuItemBySlug, getMenuItems } from "../data/repository";
 import {
   getOrder,
@@ -46,7 +46,10 @@ const order = (over: Partial<Order> = {}): Order => ({
   ...over,
 });
 
-beforeEach(() => resetStore());
+beforeEach(async () => {
+  menuWasModified();
+  await resetTestDatabase();
+});
 
 describe("dashboard stats", () => {
   it("counts today's orders and revenue", () => {
@@ -479,10 +482,13 @@ describe("menu management", () => {
     expect(await setMenuItemAvailability("itm-nope", false)).toMatchObject({ ok: false });
   });
 
-  it("does not leak edits into the factory menu", async () => {
+  it("restores the seeded menu on a reset", async () => {
+    // The database is now the menu's home; the seed module is the factory
+    // default it is restored from, and deleting a dish must not touch it.
     const items = await getMenuItems();
     await deleteMenuItem(items[0].id);
-    resetStore();
+    menuWasModified();
+    await resetTestDatabase();
     expect((await getMenuItems()).length).toBe(items.length);
   });
 });
@@ -515,7 +521,10 @@ describe("the session cookie's shape check", () => {
  * photograph leaves the photograph alone.
  */
 describe("menu item photographs", () => {
-  beforeEach(() => resetStore());
+  beforeEach(async () => {
+  menuWasModified();
+  await resetTestDatabase();
+});
 
   const base = {
     name: "Test Dish",

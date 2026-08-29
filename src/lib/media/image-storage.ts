@@ -1,15 +1,22 @@
-import { getStore } from "../server/store";
+import { eq } from "drizzle-orm";
+import { getDb } from "../db/client";
+import * as t from "../db/schema";
 import { extensionFor, type AllowedImageType } from "./image-validation";
 
 /**
  * Where an uploaded dish photograph goes. SERVER ONLY.
  *
  * ── What is real today ──────────────────────────────────────────────────────
- * Uploads are kept in the same place as everything else staff change: the
- * in-memory server store. A photograph uploaded now behaves exactly like a dish
- * created now — it is live for customers immediately, and it is gone when the
- * process restarts. That is the prototype's storage model, applied honestly,
- * rather than a browser preview dressed up as a save.
+ * Uploads are kept in the same place as everything else staff change: Postgres,
+ * as `bytea` in `menu_images`. A photograph uploaded now is live for customers
+ * immediately, survives a restart, and is visible to every instance behind a
+ * load balancer — the same guarantees the dish it belongs to gets.
+ *
+ * A database is not where large binaries belong long-term: every byte goes
+ * through the connection pool and into backups, and an object store with a CDN
+ * in front is the right answer at volume. Uploads here are capped at a couple
+ * of megabytes by `image-validation.ts`, which makes this correct now and worth
+ * revisiting when the menu has a thousand photographs — see the S3 seam below.
  *
  * The photographs shipped with the site are a different thing and are not
  * affected: those are files in `public/menu/`, committed to the repository, and
@@ -63,9 +70,9 @@ export interface ImageStorageProvider {
  * Served back by `/api/menu-image/[id]`. Ids are generated here rather than
  * taken from the upload, so a filename can never become a path.
  */
-class MemoryImageStorage implements ImageStorageProvider {
-  readonly name = "this server's memory";
-  readonly durable = false;
+class DatabaseImageStorage implements ImageStorageProvider {
+  readonly name = "the application database";
+  readonly durable = true;
 
   async save({
     data,
@@ -87,14 +94,16 @@ class MemoryImageStorage implements ImageStorageProvider {
       .toString(36)
       .slice(2, 6)}.${extensionFor(contentType)}`;
 
-    getStore().images.set(id, { data, contentType });
+    await getDb()
+      .insert(t.menuImages)
+      .values({ id, data: Buffer.from(data), contentType });
 
     return { url: `/api/menu-image/${id}`, contentType, bytes: data.byteLength };
   }
 
   async delete(url: string): Promise<void> {
     const id = url.split("/").pop();
-    if (id) getStore().images.delete(id);
+    if (id) await getDb().delete(t.menuImages).where(eq(t.menuImages.id, id));
   }
 }
 
@@ -108,10 +117,10 @@ class MemoryImageStorage implements ImageStorageProvider {
  * out loud rather than letting staff assume.
  */
 export function getImageStorageProvider(): ImageStorageProvider {
-  return new MemoryImageStorage();
+  return new DatabaseImageStorage();
 }
 
-/** Whether uploads survive a restart. False until a real object store is connected. */
+/** Whether uploads survive a restart. True now they are rows rather than a Map. */
 export function isImageStorageDurable(): boolean {
   return getImageStorageProvider().durable;
 }

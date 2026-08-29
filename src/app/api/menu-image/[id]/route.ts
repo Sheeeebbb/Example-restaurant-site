@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { getStore } from "@/lib/server/store";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import * as t from "@/lib/db/schema";
 
 /**
  * Serves a photograph staff uploaded.
  *
  * Public on purpose: these are the pictures on the customer menu. The id is a
- * lookup key in a map, never a path — a filename from an upload cannot reach
- * the filesystem through here, whatever it is called.
+ * primary key, never a path — a filename from an upload cannot reach the
+ * filesystem through here, whatever it is called.
  *
  * The photographs shipped with the site are static files under `public/menu/`
  * and are served by Next directly; this route only knows about the ones added
@@ -17,12 +19,28 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const image = getStore().images.get(id);
+
+  let image: { data: Buffer; contentType: string } | undefined;
+  try {
+    const rows = await getDb()
+      .select({ data: t.menuImages.data, contentType: t.menuImages.contentType })
+      .from(t.menuImages)
+      .where(eq(t.menuImages.id, id));
+    image = rows[0];
+  } catch (error) {
+    /*
+     * A database that is down is a 503, not a 404: telling the browser the
+     * photograph does not exist would cache that answer for a year under the
+     * header below, and the picture would stay missing long after the outage.
+     */
+    console.error("[menu-image] lookup failed:", error);
+    return new NextResponse("Temporarily unavailable", { status: 503 });
+  }
 
   if (!image) {
     // 404 rather than a placeholder: `resolvePhoto` cannot check this, so a
-    // dish whose upload was lost to a restart falls back to its designed tile
-    // through the image element's own error path.
+    // dish pointing at an upload that was deleted falls back to its designed
+    // tile through the image element's own error path.
     return new NextResponse("Not found", { status: 404 });
   }
 

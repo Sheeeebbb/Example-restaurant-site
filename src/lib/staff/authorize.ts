@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { STAFF_COOKIE } from "../admin/auth";
+import { inArray } from "drizzle-orm";
 import {
   permissionsFor,
   publicStaff,
-  resolvePermissions,
   staffForToken,
 } from "./staff-repository";
-import { getStore } from "../server/store";
+import { getDb } from "../db/client";
+import * as t from "../db/schema";
 import type { PublicStaff } from "./types";
 
 /**
@@ -24,7 +25,7 @@ import type { PublicStaff } from "./types";
  * httpOnly cookie. It carries no role, no permissions, no staff id, and there
  * is nothing in it a client could usefully edit — changing the token invalidates
  * it, and there is no other input to change. Everything else is looked up
- * server-side, per request, from the store:
+ * server-side, per request, from the database:
  *
  *     cookie token -> session -> staff account -> roles -> permissions
  *
@@ -69,14 +70,27 @@ export async function currentActor(): Promise<Actor | null> {
   const account = await staffForToken(token);
   if (!account) return null;
 
-  const roles = getStore().roles;
-  const permissions = resolvePermissions(account, roles);
+  /*
+   * Permissions come back as one joined query rather than by loading every
+   * role — see `permissionsFor`. The role NAMES are a second small query
+   * because they are display only: they go into the status history so a line
+   * still reads "Ana (Manager)" after Ana's roles change next month.
+   */
+  const permissions = await permissionsFor(account.id);
+  const roleNames =
+    account.roleIds.length > 0
+      ? (
+          await getDb()
+            .select({ name: t.roles.name })
+            .from(t.roles)
+            .where(inArray(t.roles.id, account.roleIds))
+        ).map((row) => row.name)
+      : [];
+
   return {
     staff: publicStaff(account),
     permissions,
-    roleNames: account.roleIds
-      .map((roleId) => roles.get(roleId)?.name)
-      .filter((name): name is string => Boolean(name)),
+    roleNames,
     can: (permission: string) => permissions.has(permission),
   };
 }

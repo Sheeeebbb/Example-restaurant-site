@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { resetStore } from "../server/store";
+import { resetTestDatabase } from "../db/test-support";
 import {
   ALL_PERMISSIONS,
   LOCKOUT_CRITICAL_PERMISSIONS,
@@ -36,7 +36,7 @@ import type { Role, StaffAccount } from "./types";
 
 const PASSWORD = "correct-horse-battery-staple";
 
-beforeEach(() => resetStore());
+beforeEach(async () => resetTestDatabase());
 
 async function seeded() {
   await ensureStaffData();

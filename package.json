@@ -9,10 +9,19 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "photos:check": "node scripts/check-photos.mjs"
+    "photos:check": "node scripts/check-photos.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/lib/db/migrate.ts",
+    "db:seed": "tsx src/lib/db/seed.ts",
+    "db:seed:demo": "tsx src/lib/db/seed.ts demo",
+    "db:reset": "tsx src/lib/db/seed.ts reset",
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "next": "16.3.2",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zustand": "^5.0.15"
@@ -20,11 +29,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

@@ -1,6 +1,8 @@
+import { eq, ne } from "drizzle-orm";
 import type { MenuItem } from "../types";
-import { getStore } from "../server/store";
-import { CATEGORIES } from "../data/menu";
+import { getDb, type Tx } from "../db/client";
+import * as t from "../db/schema";
+import { loadMenuItemById } from "../db/menu-queries";
 
 /**
  * Staff menu management. SERVER ONLY.
@@ -56,12 +58,19 @@ function slugify(name: string): string {
     .slice(0, 60);
 }
 
-/** Appends -2, -3… so two dishes with the same name still get distinct URLs. */
-function uniqueSlug(base: string, excludeId?: string): string {
-  const menu = getStore().menu;
-  const taken = new Set(
-    menu.filter((item) => item.id !== excludeId).map((item) => item.slug),
-  );
+/**
+ * Appends -2, -3… so two dishes with the same name still get distinct URLs.
+ *
+ * Advisory only: `menu_items.slug` carries a UNIQUE constraint, so if two
+ * managers create "Spring Salad" at the same instant one insert fails rather
+ * than two dishes sharing a URL. This just makes the common case pleasant.
+ */
+async function uniqueSlug(tx: Tx, base: string, excludeId?: string): Promise<string> {
+  const rows = await tx
+    .select({ slug: t.menuItems.slug })
+    .from(t.menuItems)
+    .where(excludeId ? ne(t.menuItems.id, excludeId) : undefined);
+  const taken = new Set(rows.map((row) => row.slug));
   if (!taken.has(base)) return base;
 
   let suffix = 2;
@@ -93,9 +102,8 @@ function validate(input: MenuItemInput): { error: string; field?: string } | nul
   if (!input.description?.trim()) {
     return { error: "Add a short description.", field: "description" };
   }
-  if (!CATEGORIES.some((category) => category.id === input.categoryId)) {
-    return { error: "Choose a category.", field: "categoryId" };
-  }
+  // The category is checked against the database below, where the write is —
+  // the foreign key is the real guard, this is only for a decent message.
   if (!Number.isInteger(input.basePrice) || input.basePrice < 0) {
     return { error: "Price must be a whole number of cents.", field: "basePrice" };
   }
@@ -115,33 +123,44 @@ export async function createMenuItem(input: MenuItemInput): Promise<MenuAdminRes
   const invalid = validate(input);
   if (invalid) return { ok: false, ...invalid };
 
-  const slug = uniqueSlug(slugify(input.name));
-  const item: MenuItem = {
-    id: `itm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    slug,
-    categoryId: input.categoryId,
-    name: input.name.trim(),
-    description: input.description.trim(),
-    basePrice: input.basePrice,
-    image: {
+  return getDb().transaction(async (tx) => {
+    const category = await tx
+      .select({ id: t.categories.id })
+      .from(t.categories)
+      .where(eq(t.categories.id, input.categoryId));
+    if (category.length === 0) {
+      return { ok: false, error: "Choose a category.", field: "categoryId" } as const;
+    }
+
+    const slug = await uniqueSlug(tx, slugify(input.name));
+    const id = `itm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    await tx.insert(t.menuItems).values({
+      id,
+      slug,
+      categoryId: input.categoryId,
+      name: input.name.trim(),
+      description: input.description.trim(),
+      basePrice: input.basePrice,
       // No photograph yet is a perfectly good state: the slug-shaped path is
       // where a shipped photograph would live, it resolves to nothing, and the
       // card renders its designed fallback tile until one exists.
-      src: input.imageSrc ?? `/menu/${slug}.jpg`,
-      alt: input.imageAlt?.trim() || input.name.trim(),
-    },
-    tags: input.tags ?? [],
-    allergens: input.allergens ?? [],
-    available: input.available,
-    featured: input.featured,
-    kitchenMinutes: input.kitchenMinutes,
+      imageSrc: input.imageSrc ?? `/menu/${slug}.jpg`,
+      imageAlt: input.imageAlt?.trim() || input.name.trim(),
+      tags: input.tags ?? [],
+      allergens: input.allergens ?? [],
+      available: input.available,
+      featured: input.featured,
+      kitchenMinutes: input.kitchenMinutes,
+    });
+
     // New dishes start uncustomisable. Option groups are composed in code, and
     // a form that could express every rule would be a project of its own.
-    optionGroups: [],
-  };
-
-  getStore().menu.push(item);
-  return { ok: true, item };
+    const item = await loadMenuItemById(tx, id);
+    return item
+      ? ({ ok: true, item } as const)
+      : ({ ok: false, error: "The dish could not be created." } as const);
+  });
 }
 
 export async function updateMenuItem(
@@ -151,37 +170,57 @@ export async function updateMenuItem(
   const invalid = validate(input);
   if (invalid) return { ok: false, ...invalid };
 
-  const menu = getStore().menu;
-  const index = menu.findIndex((item) => item.id === id);
-  if (index === -1) return { ok: false, error: "That dish no longer exists." };
+  return getDb().transaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(t.menuItems)
+      .where(eq(t.menuItems.id, id));
+    if (existing.length === 0) {
+      return { ok: false, error: "That dish no longer exists." } as const;
+    }
 
-  const existing = menu[index];
-  // Renaming keeps the original slug: changing it would break every link and
-  // bookmark already pointing at the dish.
-  const updated: MenuItem = {
-    ...existing,
-    name: input.name.trim(),
-    description: input.description.trim(),
-    categoryId: input.categoryId,
-    basePrice: input.basePrice,
-    available: input.available,
-    featured: input.featured,
-    tags: input.tags ?? [],
-    allergens: input.allergens ?? [],
-    kitchenMinutes: input.kitchenMinutes,
-    /*
-     * The photograph is only touched when the edit carried a new one. An edit
-     * that changes the price must not quietly drop the picture, and cancelling
-     * an image change sends no `imageSrc` at all — so "absent" has to mean
-     * "leave it alone", not "clear it".
-     */
-    image: input.imageSrc
-      ? { src: input.imageSrc, alt: input.imageAlt?.trim() || input.name.trim() }
-      : { ...existing.image, alt: input.imageAlt?.trim() || existing.image.alt },
-  };
+    const category = await tx
+      .select({ id: t.categories.id })
+      .from(t.categories)
+      .where(eq(t.categories.id, input.categoryId));
+    if (category.length === 0) {
+      return { ok: false, error: "Choose a category.", field: "categoryId" } as const;
+    }
 
-  menu[index] = updated;
-  return { ok: true, item: updated };
+    // Renaming keeps the original slug: changing it would break every link and
+    // bookmark already pointing at the dish.
+    await tx
+      .update(t.menuItems)
+      .set({
+        name: input.name.trim(),
+        description: input.description.trim(),
+        categoryId: input.categoryId,
+        basePrice: input.basePrice,
+        available: input.available,
+        featured: input.featured,
+        tags: input.tags ?? [],
+        allergens: input.allergens ?? [],
+        kitchenMinutes: input.kitchenMinutes,
+        /*
+         * The photograph is only touched when the edit carried a new one. An
+         * edit that changes the price must not quietly drop the picture, and
+         * cancelling an image change sends no `imageSrc` at all — so "absent"
+         * has to mean "leave it alone", not "clear it".
+         */
+        ...(input.imageSrc
+          ? {
+              imageSrc: input.imageSrc,
+              imageAlt: input.imageAlt?.trim() || input.name.trim(),
+            }
+          : { imageAlt: input.imageAlt?.trim() || existing[0].imageAlt }),
+      })
+      .where(eq(t.menuItems.id, id));
+
+    const item = await loadMenuItemById(tx, id);
+    return item
+      ? ({ ok: true, item } as const)
+      : ({ ok: false, error: "That dish no longer exists." } as const);
+  });
 }
 
 /** Flips availability without touching anything else — the most common action. */
@@ -189,19 +228,33 @@ export async function setMenuItemAvailability(
   id: string,
   available: boolean,
 ): Promise<MenuAdminResult> {
-  const menu = getStore().menu;
-  const index = menu.findIndex((item) => item.id === id);
-  if (index === -1) return { ok: false, error: "That dish no longer exists." };
+  const db = getDb();
+  const updated = await db
+    .update(t.menuItems)
+    .set({ available })
+    .where(eq(t.menuItems.id, id))
+    .returning({ id: t.menuItems.id });
+  if (updated.length === 0) return { ok: false, error: "That dish no longer exists." };
 
-  menu[index] = { ...menu[index], available };
-  return { ok: true, item: menu[index] };
+  const item = await loadMenuItemById(db, id);
+  return item ? { ok: true, item } : { ok: false, error: "That dish no longer exists." };
 }
 
+/**
+ * Removes a dish from the menu.
+ *
+ * Its option groups and options go with it — `ON DELETE CASCADE`, because they
+ * describe this dish and nothing else. What does NOT go with it is any order
+ * that contained it: `order_items` holds its own copy of the name and price and
+ * only a nullable reference back here, so deleting the Classic Burger today
+ * leaves every receipt that sold one intact and readable.
+ */
 export async function deleteMenuItem(id: string): Promise<{ ok: boolean; error?: string }> {
-  const menu = getStore().menu;
-  const index = menu.findIndex((item) => item.id === id);
-  if (index === -1) return { ok: false, error: "That dish no longer exists." };
-
-  menu.splice(index, 1);
-  return { ok: true };
+  const deleted = await getDb()
+    .delete(t.menuItems)
+    .where(eq(t.menuItems.id, id))
+    .returning({ id: t.menuItems.id });
+  return deleted.length > 0
+    ? { ok: true }
+    : { ok: false, error: "That dish no longer exists." };
 }

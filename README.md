@@ -10,7 +10,8 @@ tests. Real backend integration remains; see [Roadmap](#roadmap).
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 525 unit tests, including regressions for every defect found in QA
+npm run db:setup # migrate + seed (needs DATABASE_URL — see below)
+npm test         # 545 tests; the persistence ones need a database
 npm run build
 ```
 
@@ -31,6 +32,51 @@ ALLOWED_DEV_ORIGINS="urban-table.ngrok-free.app,*.trycloudflare.com" npm run dev
 ```
 
 Development only. `next start` serves any host and ignores all of this.
+
+### The database
+
+Everything the restaurant runs on — orders, staff accounts, roles, the menu —
+lives in **PostgreSQL**. Nothing survives in a process's memory, so a restart, a
+deploy, a crash or a second instance behind a load balancer all see the same
+data.
+
+**Setup, in full:**
+
+```bash
+# 1. A database. Anything Postgres 14+ will do; this is the quickest.
+docker run -d --name urban-table-db -p 5432:5432 \
+  -e POSTGRES_USER=urbantable -e POSTGRES_PASSWORD=localdev \
+  -e POSTGRES_DB=urban_table postgres:16
+
+# 2. Point the app at it.
+cp .env.example .env.local
+#    DATABASE_URL=postgresql://urbantable:localdev@localhost:5432/urban_table
+
+# 3. Create the schema and fill it.
+npm run db:setup
+
+# 4. Go.
+npm run dev
+```
+
+| Command | What it does |
+| --- | --- |
+| `npm run db:migrate` | Applies any migration in `drizzle/` that has not run. Idempotent; run it on every deploy. |
+| `npm run db:seed` | Menu, permission catalogue, the three starting roles and the first manager account. Idempotent. |
+| `npm run db:setup` | Both of the above. |
+| `npm run db:seed:demo` | Adds `demo-kitchen` and `demo-driver`. Development only — it refuses to run with `NODE_ENV=production`. |
+| `npm run db:reset` | **Empties every table**, then reseeds. Refuses in production unless `ALLOW_DB_RESET=yes`. |
+| `npm run db:generate` | After editing `src/lib/db/schema.ts`, writes the SQL migration for the change. |
+| `npm run db:studio` | Drizzle's table browser. |
+
+The first manager account is seeded from `ADMIN_PASSCODE` (default `urbantable`),
+hashed on the way in. **Set it before the first `db:seed` on anything real.**
+After that first seed the variable does nothing — the password lives in the
+database and is changed through the staff screens.
+
+`npm test` needs a database too: about a quarter of the suite exercises
+persistence, and those are integration tests on purpose. "An order survives a
+restart" is not a property a fake can demonstrate.
 
 ### Configuration
 
