@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  statusDescription,
-  statusLabel,
-  timelineFor,
-  timelineIndex,
-} from "@/lib/order/status";
+import { useTranslations } from "next-intl";
+import { timelineFor, timelineIndex } from "@/lib/order/status";
+import { statusKey } from "@/i18n/status";
 import type { FulfillmentType, OrderStatus } from "@/lib/types";
 
 /**
@@ -27,6 +24,15 @@ export function OrderTimeline({
   status: OrderStatus;
   fulfillmentType: FulfillmentType;
 }) {
+  /*
+   * The customer's timeline reads its words from the catalogue, keyed by the
+   * same `statusKey` the status line uses — `statusLabel` in lib/order/status
+   * stays English because the staff screens share it.
+   */
+  const t = useTranslations("order");
+  const ts = useTranslations("order.status");
+  const td = useTranslations("order.statusDescription");
+
   const stages = timelineFor(fulfillmentType);
   const current = timelineIndex(status, fulfillmentType);
 
@@ -81,16 +87,16 @@ export function OrderTimeline({
                   isCurrent ? "text-ink" : done ? "text-ink-muted" : "text-ink-subtle"
                 }`}
               >
-                {statusLabel(stage, fulfillmentType)}
+                {ts(statusKey(stage, fulfillmentType))}
                 {isCurrent && (
                   <span className="ml-2 rounded-full bg-ember-soft px-2 py-0.5 text-xs font-semibold text-ember">
-                    Now
+                    {t("now")}
                   </span>
                 )}
               </p>
               {isCurrent && (
                 <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-                  {statusDescription(stage, fulfillmentType)}
+                  {td(statusKey(stage, fulfillmentType))}
                 </p>
               )}
             </div>

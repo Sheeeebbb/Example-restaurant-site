@@ -77,7 +77,7 @@ export function CartButton() {
       </svg>
 
       <span aria-hidden="true" className="hidden sm:inline">
-        Cart
+        {t("cart")}
       </span>
 
       <span className="sr-only">

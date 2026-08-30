@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 
@@ -29,6 +31,7 @@ export interface NavSection {
  * or three sections.
  */
 export function CategoryNav({ sections }: { sections: NavSection[] }) {
+  const t = useTranslations("menu");
   const [active, setActive] = useState(sections[0]?.id ?? "");
   const [offset, setOffset] = useState(0);
   const [overflow, setOverflow] = useState({ start: false, end: false });
@@ -174,7 +177,7 @@ export function CategoryNav({ sections }: { sections: NavSection[] }) {
   return (
     <div className="sticky top-[var(--header-height)] z-30 border-y border-line bg-paper/95 backdrop-blur-md">
       <Container className="relative">
-        <nav aria-label="Menu categories">
+        <nav aria-label={t("categoriesNav")}>
           {/*
             Scrolls sideways on small screens rather than wrapping to three
             rows under an already two-row sticky header. `-mx-4 px-4` lets the

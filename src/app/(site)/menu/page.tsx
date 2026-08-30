@@ -54,7 +54,7 @@ export default async function MenuPage() {
       ? [
           {
             id: "cat-popular",
-            name: "Popular",
+            name: th("popular"),
             description: th("popularBody"),
             items: popular,
           },

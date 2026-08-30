@@ -1,4 +1,6 @@
 import en from "../../messages/en.json";
+import nl from "../../messages/nl.json";
+import { DEFAULT_LOCALE, type Locale } from "./config";
 
 /**
  * A translator for pure, non-React code.
@@ -45,6 +47,28 @@ export const englishMessages: Messages = (key, values) => {
   const value = lookup(en, key.split("."));
   return typeof value === "string" ? interpolate(value, values) : "";
 };
+
+/** Every catalogue, by locale. Adding a language adds one entry here. */
+const CATALOGUES: Record<Locale, unknown> = { en, nl };
+
+/**
+ * A translator for a given locale, with English underneath it.
+ *
+ * For server code that is not a React component — route handlers especially.
+ * `getTranslations` needs React's server context and throws without it, which
+ * makes a route handler awkward to test; this needs nothing but the locale.
+ * A key missing from the requested language falls through to English, the same
+ * rule the React side applies.
+ */
+export function messagesFor(locale: Locale): Messages {
+  if (locale === DEFAULT_LOCALE) return englishMessages;
+  const catalogue = CATALOGUES[locale];
+  return (key, values) => {
+    const value = lookup(catalogue, key.split("."));
+    if (typeof value === "string" && value !== "") return interpolate(value, values);
+    return englishMessages(key, values);
+  };
+}
 
 /**
  * Wraps a next-intl translator so it satisfies `Messages`.

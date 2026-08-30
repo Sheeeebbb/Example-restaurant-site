@@ -50,11 +50,11 @@ export function EmptyCart() {
           {t("empty")}
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-          Let&rsquo;s fix that. Explore our menu and pick your favorites.
+          {t("emptyLead")}
         </p>
 
         <ButtonLink href="/menu" size="lg" className="mt-8">
-          Explore Menu
+          {t("exploreMenu")}
         </ButtonLink>
       </div>
     </Container>

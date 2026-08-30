@@ -1,4 +1,5 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { ButtonLink } from "@/components/ui/Button";
@@ -7,15 +8,17 @@ import { openingHoursSummary } from "@/lib/fulfillment/scheduling";
 import { attributedPhotos } from "@/lib/data/photography";
 import { MENU_ITEMS } from "@/lib/data/menu";
 
-export const metadata: Metadata = {
-  title: "About",
-  description: RESTAURANT.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("about");
+  return { title: t("metaTitle"), description: RESTAURANT.description };
+}
 
 export default async function AboutPage() {
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations("about");
   const tf = await getTranslations("footer");
   const tm = await getTranslations("menu");
-  const hours = openingHoursSummary();
+  const hours = openingHoursSummary(locale);
   /*
    * Most of the food photography is CC0 and carries no obligation. The few
    * share-alike frames must be credited wherever they appear, so they are
@@ -28,24 +31,13 @@ export default async function AboutPage() {
     <Container className="py-16 sm:py-20">
       <div className="max-w-2xl">
         <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          About {RESTAURANT.name}
+          {t("heading", { restaurant: RESTAURANT.name })}
         </h1>
 
         <div className="mt-6 space-y-4 text-lg leading-relaxed text-ink-muted">
-          <p>
-            We opened on Oranienstraße with a flat top, a walk-in full of
-            vegetables, and one rule: cook everything to order, properly, and
-            charge a fair price for it.
-          </p>
-          <p>
-            Beef is ground fresh each morning and smashed to order. Bread is
-            baked in-house. Salads are dressed when you order them, not hours
-            before. Nothing sits under a heat lamp waiting for a courier.
-          </p>
-          <p>
-            Most of what we serve travels well, which is deliberate — a burger
-            that falls apart on the way to you is a burger we got wrong.
-          </p>
+          <p>{t("p1")}</p>
+          <p>{t("p2")}</p>
+          <p>{t("p3")}</p>
         </div>
       </div>
 
@@ -58,11 +50,11 @@ export default async function AboutPage() {
             {tf("openingHours")}
           </h2>
           <dl className="mt-4 space-y-1 text-sm">
-            {hours.map(({ day, hours: range }) => (
+            {hours.map(({ day, hours: range, closed }) => (
               <div key={day} className="flex justify-between gap-4">
                 <dt className="text-ink-muted">{day}</dt>
-                <dd className={range === "Closed" ? "text-ink-subtle" : "font-medium text-ink"}>
-                  {range}
+                <dd className={closed ? "text-ink-subtle" : "font-medium text-ink"}>
+                  {closed ? tf("closed") : range}
                 </dd>
               </div>
             ))}
@@ -74,7 +66,7 @@ export default async function AboutPage() {
           className="rounded-card border border-line bg-surface p-6"
         >
           <h2 id="find-heading" className="font-display text-xl font-semibold text-ink">
-            Find us
+            {t("findUs")}
           </h2>
           <address className="mt-4 text-sm not-italic leading-relaxed text-ink-muted">
             {RESTAURANT.address.line1}
@@ -97,9 +89,7 @@ export default async function AboutPage() {
             {tm("allergens")}
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-            Every dish lists its allergens on the menu. If you need something
-            adapted, call us before ordering and we&rsquo;ll tell you honestly
-            whether we can do it safely.
+            {t("allergenBody")}
           </p>
         </section>
       </div>
@@ -110,17 +100,16 @@ export default async function AboutPage() {
           className="mt-8 rounded-card border border-line bg-surface p-6"
         >
           <h2 id="photography-heading" className="font-display text-xl font-semibold text-ink">
-            Photography
+            {t("photography")}
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-            Our own photography is on its way. Until then some dishes are shown
-            with licensed stock photographs, and these ones ask to be credited:
+            {t("photographyBody")}
           </p>
           <ul className="mt-4 space-y-2 text-sm text-ink-muted">
             {photoCredits.map(({ slug, credit }) => (
               <li key={slug}>
                 <span className="text-ink">
-                  {dishName.get(slug) ?? "Homepage"}
+                  {dishName.get(slug) ?? t("homepage")}
                 </span>{" "}
                 &mdash;{" "}
                 {credit.url ? (
@@ -144,7 +133,7 @@ export default async function AboutPage() {
 
       <div className="mt-12">
         <ButtonLink href="/menu" size="lg">
-          See the menu
+          {t("seeMenu")}
         </ButtonLink>
       </div>
     </Container>

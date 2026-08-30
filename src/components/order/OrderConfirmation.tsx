@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations, useLocale } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
 import { translateStatus } from "@/i18n/status";
 import { FORMATTING, type Locale } from "@/i18n/config";
 
@@ -40,6 +41,12 @@ export function OrderConfirmation({
 }) {
   const t = useTranslations("order");
   const ts = useTranslations("order.status");
+  // The totals block reuses the cart's words so the two pages agree.
+  const tc = useTranslations("cart");
+  const tRoot = useTranslations();
+  const messages = fromNextIntl(
+    tRoot as (k: string, v?: Record<string, string | number>) => string,
+  );
   const locale = useLocale() as Locale;
   const money = (cents: number) => formatMoney(cents, locale);
 
@@ -146,18 +153,21 @@ export function OrderConfirmation({
       <Container className="py-20">
         <div className="mx-auto max-w-md text-center">
           <h1 className="font-display text-3xl font-semibold text-ink">
-            We can&rsquo;t find that order
+            {t("notFoundTitle")}
           </h1>
           <p className="mt-4 leading-relaxed text-ink-muted">
-            Order <span className="font-medium text-ink">{reference}</span>{" "}
-            isn&rsquo;t in this browser. Orders in this demonstration are kept
-            for the current tab only — closing it clears them.
+            {t.rich("notFoundBody", {
+              reference,
+              ref: (chunks) => (
+                <span className="font-medium text-ink">{chunks}</span>
+              ),
+            })}
           </p>
           <Link
             href="/menu"
             className="mt-8 inline-flex min-h-12 items-center justify-center rounded-control bg-ember px-6 font-semibold text-on-ember"
           >
-            Browse Menu
+            {t("browseMenu")}
           </Link>
         </div>
       </Container>
@@ -166,7 +176,7 @@ export function OrderConfirmation({
 
   const status = staffStatus ?? deriveStatus(order, now);
   const isCancelled = status === "cancelled";
-  const refundNotice = customerRefundNotice(cancellation?.refund ?? undefined);
+  const refundNotice = customerRefundNotice(cancellation?.refund ?? undefined, messages);
   const isDelivery = order.fulfillment.type === "delivery";
   const readyAt = new Date(order.estimatedReadyAt);
 
@@ -216,11 +226,10 @@ export function OrderConfirmation({
             </span>
             <div className="min-w-0">
               <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                Order Cancelled
+                {t("cancelledHeading")}
               </h1>
               <p className="mt-2 text-lg leading-relaxed text-ink-muted">
-                We&rsquo;re sorry — your order has been cancelled by the
-                restaurant.
+                {t("cancelledLead")}
               </p>
             </div>
           </div>
@@ -269,7 +278,7 @@ export function OrderConfirmation({
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-ink-muted">Cancelled</dt>
+              <dt className="text-sm text-ink-muted">{t("cancelledAt")}</dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
                 {cancellation?.at ? timeFormat.format(new Date(cancellation.at)) : "—"}
               </dd>
@@ -280,8 +289,8 @@ export function OrderConfirmation({
             <div>
               <dt className="text-sm text-ink-muted">
                 {cancellation?.refund?.status === "notRequired"
-                  ? "Charged"
-                  : "Refund"}
+                  ? t("charged")
+                  : t("refund")}
               </dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
                 {money(
@@ -297,14 +306,18 @@ export function OrderConfirmation({
           </dl>
 
           <p className="mt-6 text-sm leading-relaxed text-ink-muted">
-            Any questions about this order, call us on{" "}
-            <a
-              className="font-medium text-ink underline underline-offset-4"
-              href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
-            >
-              {RESTAURANT.contact.phone}
-            </a>{" "}
-            and quote {order.reference}.
+            {t.rich("anyQuestions", {
+              number: RESTAURANT.contact.phone,
+              reference: order.reference,
+              phone: (chunks) => (
+                <a
+                  className="font-medium text-ink underline underline-offset-4"
+                  href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
+                >
+                  {chunks}
+                </a>
+              ),
+            })}
           </p>
         </div>
       ) : (
@@ -327,11 +340,13 @@ export function OrderConfirmation({
             </span>
             <div className="min-w-0">
               <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                Order Confirmed!
+                {t("confirmedHeading")}
               </h1>
               <p className="mt-2 text-lg text-ink-muted">
-                Thanks {order.customer.name.split(" ")[0]} — we&rsquo;ve sent a
-                receipt to {order.customer.email}.
+                {t("confirmedLead", {
+                  name: order.customer.name.split(" ")[0],
+                  email: order.customer.email,
+                })}
               </p>
             </div>
           </div>
@@ -345,22 +360,22 @@ export function OrderConfirmation({
             </div>
             <div>
               <dt className="text-sm text-ink-muted">
-                {isDelivery ? "Estimated delivery" : "Ready for pickup"}
+                {isDelivery ? t("estimatedDelivery") : t("readyForPickup")}
               </dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
                 {timeFormat.format(readyAt)}
               </dd>
               <dd className="text-sm text-ink-muted">
-                {sameDay ? `about ${minutesAway} minutes away` : dayFormat.format(readyAt)}
+                {sameDay ? t("minutesAway", { minutes: minutesAway }) : dayFormat.format(readyAt)}
               </dd>
             </div>
             <div>
-              <dt className="text-sm text-ink-muted">Total paid</dt>
+              <dt className="text-sm text-ink-muted">{t("totalPaid")}</dt>
               <dd className="mt-1 font-display text-2xl font-bold text-ink">
                 {money(order.totals.total)}
               </dd>
               <dd className="text-sm text-ink-muted">
-                {order.payment.provider === "mock" ? "Test payment — nothing charged" : ""}
+                {order.payment.provider === "mock" ? t("testPaymentNothingCharged") : ""}
               </dd>
             </div>
           </dl>
@@ -374,7 +389,7 @@ export function OrderConfirmation({
             id="tracking-heading"
             className="font-display text-xl font-semibold text-ink"
           >
-            Order status
+            {t("statusHeading")}
           </h2>
           <p role="status" className="mt-1 text-sm text-ink-muted">
             {translateStatus(ts, status, order.fulfillment.type)}
@@ -389,12 +404,19 @@ export function OrderConfirmation({
             */
             <div className="mt-6 rounded-card border border-warning bg-warning-soft p-6">
               <p className="font-display text-lg font-semibold text-ink">
-                This order isn&rsquo;t coming
+                {t("notComingTitle")}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                It was cancelled by the restaurant
-                {cancellation?.at ? ` at ${timeFormat.format(new Date(cancellation.at))}` : ""}
-                , so nothing is being prepared and nothing is on its way.
+                {/* The time is an optional clause inside one sentence, so the
+                    whole sentence is the message and Dutch decides where the
+                    clause sits — not a fragment appended after a comma. */}
+                {t("notComingBody", {
+                  at: cancellation?.at
+                    ? t("notComingAt", {
+                        time: timeFormat.format(new Date(cancellation.at)),
+                      })
+                    : "",
+                })}
               </p>
               {/* The reason itself is at the top of the page, where the
                   customer reads it first. Repeating it here would say the same
@@ -403,7 +425,7 @@ export function OrderConfirmation({
                 href="/menu"
                 className="mt-5 inline-flex min-h-11 items-center rounded-control bg-ember px-5 text-sm font-semibold text-on-ember transition-colors hover:bg-ember-hover"
               >
-                Order something else
+                {t("orderSomethingElse")}
               </Link>
             </div>
           ) : (
@@ -416,9 +438,7 @@ export function OrderConfirmation({
               </div>
 
               <p className="mt-4 text-xs leading-relaxed text-ink-subtle">
-                Status is simulated for this demonstration and advances on the
-                estimated timings above, until the kitchen sets it by hand — from
-                then on you see exactly what they set.
+                {t("simulatedNote")}
               </p>
             </>
           )}
@@ -427,12 +447,12 @@ export function OrderConfirmation({
         {/* ── Order details ──────────────────────────────────────────────── */}
         <section aria-labelledby="details-heading" className="space-y-6">
           <h2 id="details-heading" className="sr-only">
-            Order details
+            {t("orderDetails")}
           </h2>
 
           <div className="rounded-card border border-line bg-surface p-6">
             <h3 className="font-display text-lg font-semibold text-ink">
-              {isDelivery ? "Delivering to" : "Collect from"}
+              {isDelivery ? t("deliveringTo") : t("collectFrom")}
             </h3>
             {isDelivery && order.fulfillment.address ? (
               <address className="mt-3 text-sm not-italic leading-relaxed text-ink-muted">
@@ -472,7 +492,7 @@ export function OrderConfirmation({
 
           <div className="rounded-card border border-line bg-surface p-6">
             <h3 className="font-display text-lg font-semibold text-ink">
-              What you ordered
+              {t("whatYouOrdered")}
             </h3>
             <ul className="mt-4 divide-y divide-line">
               {order.lines.map((line) => (
@@ -520,14 +540,14 @@ export function OrderConfirmation({
 
             <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
               <div className="flex justify-between gap-4">
-                <dt className="text-ink-muted">Subtotal</dt>
+                <dt className="text-ink-muted">{tc("subtotal")}</dt>
                 <dd className="tabular-nums text-ink">
                   {money(order.totals.subtotal)}
                 </dd>
               </div>
               {order.totals.discount > 0 && (
                 <div className="flex justify-between gap-4 text-herb">
-                  <dt>Discount ({order.promotionCode})</dt>
+                  <dt>{t("discountWithCode", { code: order.promotionCode ?? "" })}</dt>
                   <dd className="tabular-nums">
                     −{money(order.totals.discount)}
                   </dd>
@@ -535,24 +555,26 @@ export function OrderConfirmation({
               )}
               {isDelivery && (
                 <div className="flex justify-between gap-4">
-                  <dt className="text-ink-muted">Delivery</dt>
+                  <dt className="text-ink-muted">{tc("deliveryFee")}</dt>
                   <dd className="tabular-nums text-ink">
                     {order.totals.deliveryFee === 0
-                      ? "Free"
+                      ? tc("deliveryFeeFree")
                       : money(order.totals.deliveryFee)}
                   </dd>
                 </div>
               )}
               <div className="flex justify-between gap-4 border-t border-line pt-2 text-base">
-                <dt className="font-semibold text-ink">Total</dt>
+                <dt className="font-semibold text-ink">{tc("total")}</dt>
                 <dd className="font-semibold tabular-nums text-ink">
                   {money(order.totals.total)}
                 </dd>
               </div>
               <p className="text-xs text-ink-subtle">
-                Includes {money(order.totals.tax)} VAT at{" "}
-                {RESTAURANT.fees.taxRatePercent}%. Payment reference{" "}
-                {order.payment.reference}.
+                {t("vatNote", {
+                  amount: money(order.totals.tax),
+                  rate: RESTAURANT.fees.taxRatePercent,
+                  payment: order.payment.reference,
+                })}
               </p>
             </dl>
           </div>
@@ -561,7 +583,7 @@ export function OrderConfirmation({
             href="/menu"
             className="inline-flex min-h-12 w-full items-center justify-center rounded-control border border-line-strong bg-surface px-6 font-medium text-ink transition-colors hover:bg-surface-sunken"
           >
-            Order something else
+            {t("orderSomethingElse")}
           </Link>
         </section>
       </div>

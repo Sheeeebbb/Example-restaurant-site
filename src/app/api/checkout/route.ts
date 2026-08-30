@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requestMessages } from "@/i18n/server";
 import { placeOrder, type PlaceOrderRequest } from "@/lib/order/place-order";
 import { saveOrder } from "@/lib/order/order-repository";
 import { openRefund, settleRefund } from "@/lib/order/refund";
@@ -18,18 +19,25 @@ import { openRefund, settleRefund } from "@/lib/order/refund";
  * from the browser to Stripe and never touch this server at all.
  */
 export async function POST(request: Request) {
+  /*
+   * Every refusal below is shown to the customer verbatim at the checkout, so
+   * it is written in their language. The locale comes from the same cookie the
+   * pages read — nothing about the order itself depends on it.
+   */
+  const { t } = await requestMessages();
+
   let body: PlaceOrderRequest;
 
   try {
     body = (await request.json()) as PlaceOrderRequest;
   } catch {
     return NextResponse.json(
-      { ok: false, error: "That request couldn't be read." },
+      { ok: false, error: t("errors.unreadableRequest") },
       { status: 400 },
     );
   }
 
-  const result = await placeOrder(body);
+  const result = await placeOrder(body, new Date(), t);
 
   if (!result.ok) {
     // 422: the request was well-formed but the order cannot be accepted —
@@ -88,9 +96,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: refunded
-          ? "We couldn't save your order and have refunded the payment. Nothing has been charged — please try again in a few minutes."
-          : "We couldn't save your order. Please contact us before trying again so we can check the payment.",
+        error: refunded ? t("errors.paidRefunded") : t("errors.paidNotSaved"),
         paymentReference: reference,
       },
       { status: 503 },

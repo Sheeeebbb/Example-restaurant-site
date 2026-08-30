@@ -50,9 +50,7 @@ export async function FeaturedMenu({
         */}
         <div className="mt-12 border-t border-line pt-10 text-center">
           <p className="mx-auto max-w-md text-lg leading-relaxed text-ink-muted">
-            That&rsquo;s a handful of our regulars&rsquo; favourites. Burgers,
-            sandwiches, salads, sides, desserts and drinks are all on the full
-            menu.
+            {t("featuredLead")}
           </p>
 
           <ButtonLink

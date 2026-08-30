@@ -1,7 +1,8 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/Container";
 import { ApplyPromoButton } from "./ApplyPromoButton";
 import { formatMoney } from "@/lib/money";
+import type { Locale } from "@/i18n/config";
 import { FIRST_ORDER_PROMO } from "@/lib/data/promotions";
 
 /**
@@ -14,6 +15,7 @@ import { FIRST_ORDER_PROMO } from "@/lib/data/promotions";
  */
 export async function PromoBanner() {
   const t = await getTranslations("home");
+  const locale = (await getLocale()) as Locale;
   const promo = FIRST_ORDER_PROMO;
 
   return (
@@ -23,18 +25,18 @@ export async function PromoBanner() {
           <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-xl">
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-poster-accent">
-                New here?
+                {t("promoEyebrow")}
               </p>
               <h2
                 id="promo-heading"
                 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight sm:text-5xl"
               >
-                {promo.value}% off your first order
+                {t("promoHeadline", { value: promo.value })}
               </h2>
               <p className="mt-4 text-base leading-relaxed text-poster-muted">
-                Use the code below at checkout on orders over{" "}
-                {formatMoney(promo.minimumSubtotal)}. One per customer, because
-                we&rsquo;d like you to come back for the second one too.
+                {t("promoBody", {
+                  minimum: formatMoney(promo.minimumSubtotal, locale),
+                })}
               </p>
             </div>
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { DietaryTag } from "@/lib/types";
 
 type Tone = "neutral" | "ember" | "herb" | "warning" | "danger";
@@ -29,16 +30,21 @@ export function Badge({
   );
 }
 
-/** Dietary tags carry a colour, but the label always states the meaning in words too. */
-const TAG_LABELS: Record<DietaryTag, { label: string; tone: Tone }> = {
-  vegetarian: { label: "Vegetarian", tone: "herb" },
-  vegan: { label: "Vegan", tone: "herb" },
-  "gluten-free": { label: "Gluten free", tone: "neutral" },
-  spicy: { label: "Spicy", tone: "ember" },
-  "contains-nuts": { label: "Contains nuts", tone: "warning" },
+/**
+ * Dietary tags carry a colour, but the label always states the meaning in words
+ * too. Only the colour is decided here: the tag itself (`gluten-free`) is the
+ * stored, language-neutral value and doubles as its translation key, so the
+ * word on screen changes with the language while the data never does.
+ */
+const TAG_TONES: Record<DietaryTag, Tone> = {
+  vegetarian: "herb",
+  vegan: "herb",
+  "gluten-free": "neutral",
+  spicy: "ember",
+  "contains-nuts": "warning",
 };
 
 export function DietaryBadge({ tag }: { tag: DietaryTag }) {
-  const { label, tone } = TAG_LABELS[tag];
-  return <Badge tone={tone}>{label}</Badge>;
+  const t = useTranslations("dietary");
+  return <Badge tone={TAG_TONES[tag]}>{t(tag)}</Badge>;
 }

@@ -16,6 +16,7 @@ import type { OrderDraft } from "./validation";
 import { generateOrderReference } from "./reference";
 import { getPaymentProvider } from "../payments";
 import { RESTAURANT } from "../config/restaurant";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * Turning a basket into an order — the authoritative version.
@@ -62,13 +63,24 @@ export type PlaceOrderResult =
 export async function placeOrder(
   request: PlaceOrderRequest,
   now: Date = new Date(),
+  /*
+   * The customer's language, for the refusals this can return — they are shown
+   * verbatim at the checkout. Defaults to English, so every existing caller and
+   * every test reads exactly as before.
+   *
+   * Only the SENTENCES move. Prices, the menu lookup and the names snapshotted
+   * onto the order stay language-neutral, which is why the dish name inside one
+   * of these messages is the base name rather than a translated one: an order
+   * record must read the same whatever language placed it.
+   */
+  t: Messages = englishMessages,
 ): Promise<PlaceOrderResult> {
   /* ── 1. Validate the cart ───────────────────────────────────────────────── */
   if (!Array.isArray(request.lines) || request.lines.length === 0) {
-    return { ok: false, error: "Your cart is empty." };
+    return { ok: false, error: t("errors.cartEmpty") };
   }
   if (request.lines.length > RESTAURANT.ordering.maxLinesPerOrder) {
-    return { ok: false, error: "That's too many separate items for one order." };
+    return { ok: false, error: t("errors.tooManyLines") };
   }
 
   const items = await getMenuItemsByIds(
@@ -80,20 +92,23 @@ export async function placeOrder(
   for (const requested of request.lines) {
     const item = itemsById.get(requested.menuItemId);
     if (!item) {
-      return { ok: false, error: "One of these items is no longer on the menu." };
+      return { ok: false, error: t("errors.itemGone") };
     }
     if (!item.available) {
-      return { ok: false, error: `${item.name} has just sold out.` };
+      return { ok: false, error: t("errors.soldOut", { item: item.name }) };
     }
 
     const quantity = Math.floor(requested.quantity);
     if (!Number.isFinite(quantity) || quantity < 1) {
-      return { ok: false, error: `Invalid quantity for ${item.name}.` };
+      return { ok: false, error: t("errors.invalidQuantity", { item: item.name }) };
     }
     if (quantity > RESTAURANT.ordering.maxQuantityPerLine) {
       return {
         ok: false,
-        error: `You can order at most ${RESTAURANT.ordering.maxQuantityPerLine} of ${item.name}.`,
+        error: t("errors.maxQuantity", {
+          max: RESTAURANT.ordering.maxQuantityPerLine,
+          item: item.name,
+        }),
       };
     }
 
@@ -105,7 +120,7 @@ export async function placeOrder(
       for (const option of group.options) {
         if (!chosen.has(option.id)) continue;
         if (!option.available) {
-          return { ok: false, error: `${option.name} is no longer available.` };
+          return { ok: false, error: t("errors.optionGone", { option: option.name }) };
         }
         selections.push({
           groupId: group.id,
@@ -122,7 +137,10 @@ export async function placeOrder(
       const group = item.optionGroups.find((g) => g.id === unsatisfied[0]);
       return {
         ok: false,
-        error: `${item.name} needs a choice for "${group?.name ?? "an option"}".`,
+        error: t("errors.needsChoice", {
+          item: item.name,
+          group: group?.name ?? t("errors.anOption"),
+        }),
       };
     }
 
@@ -137,10 +155,10 @@ export async function placeOrder(
   /* ── 2. Validate the customer's details ─────────────────────────────────── */
   const fulfillmentType = request.fulfillment?.type;
   if (fulfillmentType !== "delivery" && fulfillmentType !== "pickup") {
-    return { ok: false, error: "Choose delivery or pickup." };
+    return { ok: false, error: t("errors.chooseFulfillment") };
   }
 
-  const fieldErrors = validateOrderDraft(request.draft, fulfillmentType);
+  const fieldErrors = validateOrderDraft(request.draft, fulfillmentType, t);
   const firstError = Object.entries(fieldErrors)[0];
   if (firstError) {
     return { ok: false, error: firstError[1], field: firstError[0] };
@@ -156,6 +174,7 @@ export async function placeOrder(
     fulfillmentType,
     zone,
     now,
+    t,
   );
   if (timingError) return { ok: false, error: timingError, field: "scheduledFor" };
 
@@ -183,12 +202,12 @@ export async function placeOrder(
 
   const totals = calculateTotals({ lines, fulfillmentType, zone, promotion });
   if (totals.total <= 0) {
-    return { ok: false, error: "This order totals nothing. Please add an item." };
+    return { ok: false, error: t("errors.totalsNothing") };
   }
 
   const shortfall = zone ? zone.minimumOrder - subtotal : 0;
   if (fulfillmentType === "delivery" && shortfall > 0) {
-    return { ok: false, error: "This order is below the minimum for delivery." };
+    return { ok: false, error: t("errors.belowDeliveryMinimum") };
   }
 
   /* ── 4. Take payment ────────────────────────────────────────────────────── */
@@ -205,7 +224,7 @@ export async function placeOrder(
   if (payment.status !== "succeeded") {
     return {
       ok: false,
-      error: payment.failureMessage ?? "The payment could not be completed.",
+      error: payment.failureMessage ?? t("errors.paymentFailed"),
     };
   }
 

@@ -112,6 +112,105 @@ describe("the message catalogues", () => {
   });
 });
 
+/*
+ * ── Every key a component asks for must exist ───────────────────────────────
+ *
+ * Catalogue parity (above) proves en.json and nl.json agree with each other. It
+ * cannot prove they agree with the components, and that gap shipped a bug: the
+ * footer's link list was converted to keys, three of those keys were never
+ * added, and `getMessageFallback` turned each one into an empty string. The
+ * result was three blank links in the footer — in English as well as Dutch,
+ * because a key missing from every catalogue falls back to nothing.
+ *
+ * So this walks the source, works out which namespace each translator variable
+ * is bound to, and resolves every literal key against English.
+ *
+ * Limit worth knowing: keys built at runtime (`t(`why${reason.key}Title`)`) are
+ * invisible to a static scan. The `key: "…"` idiom used by the nav and footer
+ * link lists is covered explicitly, since that is the one that broke.
+ */
+const SOURCE_DIRS = [
+  path.join(process.cwd(), "src", "components"),
+  path.join(process.cwd(), "src", "app"),
+];
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(full);
+    if (!/\.tsx?$/.test(entry.name) || entry.name.includes(".test.")) return [];
+    return [full];
+  });
+}
+
+/** `const t = useTranslations("cart")` → { t: "cart" }; no argument → root. */
+function translatorNamespaces(source: string): Map<string, string> {
+  const bound = new Map<string, string>();
+  const binding = /const\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*(?:"([^"]*)")?\s*\)/g;
+  for (const [, name, namespace] of source.matchAll(binding)) {
+    bound.set(name, namespace ?? "");
+  }
+  return bound;
+}
+
+describe("every translation key a component uses", () => {
+  const english = catalogues.en;
+  const files = SOURCE_DIRS.flatMap(sourceFiles);
+
+  it("finds source files to check", () => {
+    expect(files.length).toBeGreaterThan(20);
+  });
+
+  it("exists in the English catalogue", () => {
+    const missing: string[] = [];
+
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      const bound = translatorNamespaces(source);
+      if (bound.size === 0) continue;
+
+      const relative = path.relative(process.cwd(), file);
+      const resolve = (namespace: string, key: string) =>
+        namespace ? `${namespace}.${key}` : key;
+
+      /*
+       * Direct calls: t("key") and t.rich("key"), against any namespace the
+       * file binds rather than the one that variable was bound to. A helper in
+       * the same file can take a translator as a prop — `AddLabel` here does —
+       * so the name alone does not settle the namespace, and getting that wrong
+       * only produces noise. What matters is the question this catches: is
+       * there any message behind this key at all?
+       */
+      const namespaces = [...new Set(bound.values())];
+      for (const name of bound.keys()) {
+        const call = new RegExp(`\\b${name}(?:\\.rich)?\\(\\s*"([^"]+)"`, "g");
+        for (const [, key] of source.matchAll(call)) {
+          if (namespaces.some((ns) => resolve(ns, key) in english)) continue;
+          missing.push(`${relative}: ${key} (not in ${namespaces.join(", ") || "root"})`);
+        }
+      }
+
+      /*
+       * The `{ href, key }` / `{ labelKey }` list idiom — this is what the
+       * footer bug looked like. Only checked where the file actually passes
+       * that property straight to a translator (`t(link.key)`); a `key:` used
+       * to build a key at runtime, or as a React list key, is not a message.
+       */
+      const passedWhole = /\b\w+\(\s*\w+\.(key|labelKey)\s*\)/.exec(source);
+      if (passedWhole) {
+        const property = passedWhole[1];
+        const listed = new RegExp(`\\b${property}:\\s*"([^"]+)"`, "g");
+        for (const [, key] of source.matchAll(listed)) {
+          if (namespaces.some((ns) => resolve(ns, key) in english)) continue;
+          missing.push(`${relative}: ${key} (not in ${namespaces.join(", ") || "root"})`);
+        }
+      }
+    }
+
+    expect(missing, `keys with no English message:\n${missing.join("\n")}`).toEqual([]);
+  });
+});
+
 describe("choosing a language", () => {
   it("defaults to English when nothing says otherwise", () => {
     expect(resolveLocale(null, null)).toBe("en");

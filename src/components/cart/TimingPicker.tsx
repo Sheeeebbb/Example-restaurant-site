@@ -193,8 +193,12 @@ export function TimingPicker({ error }: { error: string | null }) {
                       goes in the accessible name instead.
                     */}
                     <span className="sr-only">
-                      {day.longLabel}
-                      {holdsBooking && selectedSlot ? `, booked for ${selectedSlot.label}` : ""}
+                      {holdsBooking && selectedSlot
+                        ? t("dayBookedFor", {
+                            day: day.longLabel,
+                            slot: selectedSlot.label,
+                          })
+                        : day.longLabel}
                     </span>
                     <span aria-hidden="true" className="block text-sm font-semibold text-ink">
                       {/*

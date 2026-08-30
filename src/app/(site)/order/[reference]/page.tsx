@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { OrderConfirmation } from "@/components/order/OrderConfirmation";
 import { normalizeOrderReference } from "@/lib/order/reference";
 import { resolveMenuPhotos } from "@/lib/data/photos";
 import { getMenuItems } from "@/lib/data/repository";
 
-export const metadata: Metadata = { title: "Order confirmed" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("order");
+  return { title: t("metaTitle") };
+}
 
 /**
  * The confirmation lives at its own URL, keyed by order reference.

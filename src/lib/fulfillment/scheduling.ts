@@ -275,10 +275,17 @@ export function resolveReadyTime(
   return earliestReadyTime(now, fulfillmentType, zone, slowestItemMinutes);
 }
 
-/** Opening hours as display rows for the footer and the info page. */
+/**
+ * Opening hours as display rows for the footer and the info page.
+ *
+ * `closed` rather than a sentinel string in `hours`: the word for a shut day is
+ * a translation, so `hours` is empty and the caller supplies the word. A caller
+ * that tested `hours === "Closed"` would silently pass for every day once that
+ * English left, which is exactly what happened here — hence the explicit flag.
+ */
 export function openingHoursSummary(
   locale: Locale = DEFAULT_LOCALE,
-): { day: string; hours: string }[] {
+): { day: string; hours: string; closed: boolean }[] {
   /*
    * Weekday names from Intl rather than the English array, so a Dutch footer
    * says "zaterdag". Index 0 is Sunday in both, which is what makes a fixed
@@ -296,7 +303,7 @@ export function openingHoursSummary(
 
   return WEEKDAY_NAMES.map((day, index) => {
     const range = RESTAURANT.openingHours[index];
-    if (!range) return { day: nameFor(index), hours: "" };
+    if (!range) return { day: nameFor(index), hours: "", closed: true };
 
     const format = (minutes: number) => {
       const date = new Date();
@@ -304,6 +311,10 @@ export function openingHoursSummary(
       return formatTime(date, locale);
     };
 
-    return { day: nameFor(index), hours: `${format(range.opens)} – ${format(range.closes)}` };
+    return {
+      day: nameFor(index),
+      hours: `${format(range.opens)} – ${format(range.closes)}`,
+      closed: false,
+    };
   });
 }

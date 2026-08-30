@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useCartStore } from "@/lib/cart/store";
+import { useTranslations } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
 import { validatePromotion } from "@/lib/data/promotions";
 import { calculateSubtotal } from "@/lib/cart/totals";
 import { formatMoney } from "@/lib/money";
@@ -38,13 +40,19 @@ export function PromoCodeForm({
     { tone: "error" | "info"; text: string } | null
   >(null);
 
+  const t = useTranslations("cart");
+  const tRoot = useTranslations();
+  const messages = fromNextIntl(
+    tRoot as (k: string, v?: Record<string, string | number>) => string,
+  );
+
   const apply = (event: React.FormEvent) => {
     event.preventDefault();
     const code = input.trim().toUpperCase();
     if (!code) return;
 
     if (appliedCode && code === appliedCode.toUpperCase()) {
-      setMessage({ tone: "info", text: `${code} is already applied.` });
+      setMessage({ tone: "info", text: t("promoAlreadyApplied", { code }) });
       setInput("");
       return;
     }
@@ -53,6 +61,8 @@ export function PromoCodeForm({
       code,
       calculateSubtotal(lines),
       fulfillmentType,
+      new Date(),
+      messages,
     );
 
     if (!result.ok) {
@@ -64,7 +74,7 @@ export function PromoCodeForm({
     setPromotionCode(result.promotion.code);
     setMessage(
       replaced
-        ? { tone: "info", text: `${code} replaced ${appliedCode}.` }
+        ? { tone: "info", text: t("promoReplaced", { code, previous: appliedCode }) }
         : null,
     );
     setInput("");
@@ -129,7 +139,7 @@ export function PromoCodeForm({
       */}
       <form onSubmit={apply} noValidate>
         <label htmlFor="promo-code" className="text-sm font-medium text-ink">
-          {applied ? "Try a different code" : "Promotional code"}
+          {applied ? t("promoTryAnother") : t("promoLabel")}
         </label>
         <div className="mt-2 flex gap-2">
           <input
@@ -139,7 +149,7 @@ export function PromoCodeForm({
               setInput(event.target.value);
               if (message) setMessage(null);
             }}
-            placeholder={applied ? "Another code" : "WELCOME20"}
+            placeholder={applied ? t("promoAnother") : "WELCOME20"}
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}

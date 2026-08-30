@@ -1,5 +1,14 @@
+import { cookies, headers } from "next/headers";
 import { getLocale } from "next-intl/server";
-import { DEFAULT_LOCALE, isLocale, type Locale } from "./config";
+import {
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE,
+  isLocale,
+  resolveLocale,
+  type Locale,
+} from "./config";
+import { messagesFor } from "./messages";
+import type { Messages } from "./messages";
 
 /**
  * The request's language, for server code that is not a component.
@@ -16,5 +25,26 @@ export async function activeLocale(): Promise<Locale> {
     return isLocale(locale) ? locale : DEFAULT_LOCALE;
   } catch {
     return DEFAULT_LOCALE;
+  }
+}
+
+/**
+ * The request's language and a translator for it, for route handlers.
+ *
+ * Reads the cookie and `Accept-Language` directly rather than going through
+ * `getLocale`, which needs React's server context: a route handler has none
+ * under test, and a checkout that cannot be tested is not worth having. Falls
+ * back to English if there is no request at all.
+ */
+export async function requestMessages(): Promise<{ locale: Locale; t: Messages }> {
+  try {
+    const [cookieStore, headerList] = [await cookies(), await headers()];
+    const locale = resolveLocale(
+      cookieStore.get(LOCALE_COOKIE)?.value,
+      headerList.get("accept-language") ?? undefined,
+    );
+    return { locale, t: messagesFor(locale) };
+  } catch {
+    return { locale: DEFAULT_LOCALE, t: messagesFor(DEFAULT_LOCALE) };
   }
 }

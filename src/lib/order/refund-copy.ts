@@ -1,4 +1,5 @@
 import type { RefundResult, RefundStatus } from "../types";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * What a refund is called, for each of the two audiences.
@@ -41,44 +42,30 @@ export function customerRefundNotice(
    * one of those fields into the copy a typo away rather than impossible.
    */
   refund: { status: RefundStatus } | undefined,
+  /*
+   * The customer's language, defaulting to English — the same arrangement
+   * `validateOrderDraft` and `postalCodeError` use. Tests and server callers
+   * pass nothing and get exactly the English they got before.
+   */
+  t: Messages = englishMessages,
 ): RefundNotice {
-  if (!refund) {
-    return {
-      headline: "Please contact us about your refund.",
-      detail:
-        "This order was cancelled before refunds were recorded here. Call us with your order number and we'll confirm what was charged and put it right.",
-      tone: "neutral",
-    };
-  }
+  const notice = (state: string, tone: RefundTone): RefundNotice => ({
+    headline: t(`order.refundNotice.${state}Headline`),
+    detail: t(`order.refundNotice.${state}Detail`),
+    tone,
+  });
+
+  if (!refund) return notice("unknown", "neutral");
 
   switch (refund.status) {
     case "pending":
-      return {
-        headline: "Your refund has been initiated.",
-        detail:
-          "It's with your bank now, and usually takes a few working days to appear on your statement.",
-        tone: "info",
-      };
+      return notice("pending", "info");
     case "succeeded":
-      return {
-        headline: "Your refund has been completed.",
-        detail:
-          "It may still take a few working days to appear on your statement, depending on your bank.",
-        tone: "good",
-      };
+      return notice("succeeded", "good");
     case "failed":
-      return {
-        headline: "We couldn't process your refund automatically.",
-        detail:
-          "Nothing is lost — we've been alerted and will sort it out. Call us and quote your order number if you'd rather not wait.",
-        tone: "warn",
-      };
+      return notice("failed", "warn");
     case "notRequired":
-      return {
-        headline: "Nothing was charged for this order.",
-        detail: "There's no payment to refund.",
-        tone: "neutral",
-      };
+      return notice("notRequired", "neutral");
   }
 }
 

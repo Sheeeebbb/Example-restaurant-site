@@ -182,17 +182,22 @@ export function TrackOrderView() {
         )}
 
         <p className="mt-12 rounded-card border border-line bg-surface-sunken p-5 text-sm leading-relaxed text-ink-muted">
-          Orders in this demonstration are stored in your browser tab only, so a
-          reference from another device or a closed tab won&rsquo;t be found
-          here. A real deployment would look orders up in a database. If
-          you&rsquo;re stuck on a live order, call us on{" "}
-          <a
-            className="underline underline-offset-4 hover:text-ink"
-            href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
-          >
-            {RESTAURANT.contact.phone}
-          </a>
-          .
+          {/*
+            One sentence with the phone number marked up inside it, rather than
+            English fragments glued around a link — Dutch puts the clause in a
+            different order and only a whole string can express that.
+          */}
+          {t.rich("trackNote", {
+            number: RESTAURANT.contact.phone,
+            phone: (chunks) => (
+              <a
+                className="underline underline-offset-4 hover:text-ink"
+                href={`tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`}
+              >
+                {chunks}
+              </a>
+            ),
+          })}
         </p>
       </div>
     </Container>

@@ -150,14 +150,14 @@ export function CheckoutView() {
     return (
       <Container className="py-20 text-center">
         <h1 className="font-display text-3xl font-semibold text-ink">
-          Nothing to check out
+          {t("checkout.nothingToCheckOut")}
         </h1>
         <p className="mt-3 text-ink-muted">{t("validation.cartEmpty")}</p>
         <Link
           href="/menu"
           className="mt-6 inline-flex min-h-12 items-center justify-center rounded-control bg-ember px-6 font-semibold text-on-ember"
         >
-          Browse Menu
+          {t("checkout.browseMenu")}
         </Link>
       </Container>
     );

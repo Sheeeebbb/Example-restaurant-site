@@ -172,15 +172,17 @@ export function validateTiming(
   fulfillmentType: FulfillmentType,
   zone: DeliveryZone | null,
   now: Date = new Date(),
+  /** As elsewhere: the words change with the language, the rules never do. */
+  t: Messages = englishMessages,
 ): string | null {
   if (timing === "asap") {
     return isAcceptingOrdersAt(now)
       ? null
-      : `${RESTAURANT.name} isn't taking orders right now. Schedule one for later instead.`;
+      : t("validation.notAcceptingOrders", { restaurant: RESTAURANT.name });
   }
-  if (!scheduledFor) return "Please choose a time.";
+  if (!scheduledFor) return t("validation.chooseATime");
   if (!isSlotStillValid(scheduledFor, now, fulfillmentType, zone)) {
-    return "That time has passed. Please pick another.";
+    return t("validation.slotPassed");
   }
   return null;
 }

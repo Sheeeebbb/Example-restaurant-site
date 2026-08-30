@@ -4,6 +4,7 @@ import type {
   Promotion,
   PromotionResult,
 } from "../types";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * Seed promotional codes.
@@ -83,6 +84,13 @@ export function validatePromotion(
   subtotal: Cents,
   fulfillmentType: FulfillmentType,
   now: Date = new Date(),
+  /*
+   * The customer's language, defaulting to English — the arrangement used by
+   * `validateOrderDraft` and `customerRefundNotice`. `reason` stays a
+   * language-neutral code, so server callers can branch on it without ever
+   * reading the sentence.
+   */
+  t: Messages = englishMessages,
 ): PromotionResult {
   const promotion = findPromotion(code);
 
@@ -90,7 +98,7 @@ export function validatePromotion(
     return {
       ok: false,
       reason: "not-found",
-      message: "We don't recognise that code.",
+      message: t("cart.promoNotFound"),
     };
   }
 
@@ -98,23 +106,25 @@ export function validatePromotion(
     return {
       ok: false,
       reason: "inactive",
-      message: "That code is no longer available.",
+      message: t("cart.promoInactive"),
     };
   }
 
   if (promotion.expiresAt && new Date(promotion.expiresAt).getTime() <= now.getTime()) {
-    return { ok: false, reason: "expired", message: "That code has expired." };
+    return { ok: false, reason: "expired", message: t("cart.promoExpired") };
   }
 
   if (
     promotion.appliesTo !== "all" &&
     !promotion.appliesTo.includes(fulfillmentType)
   ) {
-    const allowed = promotion.appliesTo[0] === "pickup" ? "pickup" : "delivery";
+    // Two whole sentences rather than one with the mode dropped in: Dutch
+    // inflects "bezorg-"/"afhaal-" into the noun, not as a separate word.
+    const pickupOnly = promotion.appliesTo[0] === "pickup";
     return {
       ok: false,
       reason: "wrong-fulfillment",
-      message: `That code only applies to ${allowed} orders.`,
+      message: t(pickupOnly ? "cart.promoPickupOnly" : "cart.promoDeliveryOnly"),
     };
   }
 
@@ -122,7 +132,7 @@ export function validatePromotion(
     return {
       ok: false,
       reason: "below-minimum",
-      message: `Spend a little more to use this code.`,
+      message: t("cart.promoBelowMinimum"),
     };
   }
 

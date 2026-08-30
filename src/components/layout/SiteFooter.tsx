@@ -49,8 +49,9 @@ export async function SiteFooter() {
               {RESTAURANT.name}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-              {RESTAURANT.tagline} A modern neighbourhood restaurant in{" "}
-              {RESTAURANT.address.city}.
+              {/* One sentence, not a tagline with English glued after it:
+                  Dutch orders the clause differently. */}
+              {t("blurb", { city: RESTAURANT.address.city })}
             </p>
 
             <address className="mt-4 text-sm not-italic leading-relaxed text-ink-muted">
@@ -78,13 +79,13 @@ export async function SiteFooter() {
           <div>
             <h2 className="text-sm font-semibold text-ink">{t("openingHours")}</h2>
             <dl className="mt-3 space-y-1 text-sm">
-              {hours.map(({ day, hours: range }) => (
+              {hours.map(({ day, hours: range, closed }) => (
                 <div key={day} className="flex justify-between gap-4">
                   <dt className="text-ink-muted">{day}</dt>
-                  {/* An empty range means shut that day; the word for it is a
-                      translation, not something the scheduler should decide. */}
-                  <dd className={range === "" ? "text-ink-subtle" : "text-ink"}>
-                    {range === "" ? t("closed") : range}
+                  {/* The word for a shut day is a translation, not something
+                      the scheduler should decide. */}
+                  <dd className={closed ? "text-ink-subtle" : "text-ink"}>
+                    {closed ? t("closed") : range}
                   </dd>
                 </div>
               ))}
@@ -163,8 +164,7 @@ export async function SiteFooter() {
             &copy; {new Date().getFullYear()} {RESTAURANT.name}.
           </p>
           <p className="text-xs text-ink-subtle">
-            A fictional restaurant built as a demonstration project. Orders are
-            simulated, reviews are illustrative, and no payments are processed.
+            {t("disclaimer")}
           </p>
         </div>
       </Container>

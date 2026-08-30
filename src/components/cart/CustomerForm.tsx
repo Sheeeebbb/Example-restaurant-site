@@ -399,7 +399,7 @@ export function CustomerForm({
                 onChange={(event) =>
                   handleChange("deliveryInstructions", event.target.value)
                 }
-                placeholder="Buzzer 3B, second courtyard, leave with the neighbour…"
+                placeholder={t("checkout.deliveryInstructionsPlaceholder")}
                 className="mt-2 w-full rounded-control border border-line bg-surface p-3 text-sm text-ink placeholder:text-ink-subtle"
               />
             </div>

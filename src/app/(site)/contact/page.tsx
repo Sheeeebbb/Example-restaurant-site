@@ -1,13 +1,20 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { RESTAURANT, DELIVERY_ZONES } from "@/lib/config/restaurant";
 import { openingHoursSummary } from "@/lib/fulfillment/scheduling";
 
-export const metadata: Metadata = {
-  title: "Contact",
-  description: `Find ${RESTAURANT.name} in ${RESTAURANT.address.city} — address, opening hours, phone and delivery area.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("contact");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription", {
+      restaurant: RESTAURANT.name,
+      city: RESTAURANT.address.city,
+    }),
+  };
+}
 
 /**
  * Contact details, presented as real information rather than a form.
@@ -18,20 +25,21 @@ export const metadata: Metadata = {
  * what people type. The form arrives with the backend.
  */
 export default async function ContactPage() {
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations("contact");
   const tf = await getTranslations("footer");
   const tc = await getTranslations("checkout");
-  const hours = openingHoursSummary();
+  const hours = openingHoursSummary(locale);
   const telHref = `tel:${RESTAURANT.contact.phone.replace(/[^0-9+]/g, "")}`;
 
   return (
     <Container className="py-16 sm:py-20">
       <div className="max-w-2xl">
         <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          Contact
+          {t("heading")}
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-          Questions about an order, an allergy, or a large booking? The fastest
-          way to reach us is the phone — someone on the floor will pick up.
+          {t("lead")}
         </p>
       </div>
 
@@ -48,7 +56,7 @@ export default async function ContactPage() {
           className="rounded-card border border-line bg-surface p-6"
         >
           <h2 id="reach-heading" className="font-display text-xl font-semibold text-ink">
-            Reach us
+            {t("reachUs")}
           </h2>
           <dl className="mt-4 space-y-4 text-sm">
             <div>
@@ -63,7 +71,7 @@ export default async function ContactPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-ink-subtle">Email</dt>
+              <dt className="text-ink-subtle">{t("email")}</dt>
               <dd className="mt-1">
                 <a
                   href={`mailto:${RESTAURANT.contact.email}`}
@@ -74,7 +82,7 @@ export default async function ContactPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-ink-subtle">Social</dt>
+              <dt className="text-ink-subtle">{t("social")}</dt>
               <dd className="mt-1 flex flex-wrap gap-3">
                 {RESTAURANT.social.map((social) => (
                   <a
@@ -97,7 +105,7 @@ export default async function ContactPage() {
           className="rounded-card border border-line bg-surface p-6"
         >
           <h2 id="find-heading" className="font-display text-xl font-semibold text-ink">
-            Find us
+            {t("findUs")}
           </h2>
           <address className="mt-4 text-sm not-italic leading-relaxed text-ink-muted">
             {RESTAURANT.address.line1}
@@ -105,7 +113,7 @@ export default async function ContactPage() {
             {RESTAURANT.address.postalCode} {RESTAURANT.address.city}
           </address>
 
-          <h3 className="mt-6 text-sm font-semibold text-ink">Delivery area</h3>
+          <h3 className="mt-6 text-sm font-semibold text-ink">{t("deliveryArea")}</h3>
           <ul className="mt-2 space-y-1 text-sm text-ink-muted">
             {DELIVERY_ZONES.map((zone) => (
               <li key={zone.id}>{zone.name}</li>
@@ -121,11 +129,11 @@ export default async function ContactPage() {
             {tf("openingHours")}
           </h2>
           <dl className="mt-4 space-y-1 text-sm">
-            {hours.map(({ day, hours: range }) => (
+            {hours.map(({ day, hours: range, closed }) => (
               <div key={day} className="flex justify-between gap-4">
                 <dt className="text-ink-muted">{day}</dt>
-                <dd className={range === "Closed" ? "text-ink-subtle" : "font-medium text-ink"}>
-                  {range}
+                <dd className={closed ? "text-ink-subtle" : "font-medium text-ink"}>
+                  {closed ? tf("closed") : range}
                 </dd>
               </div>
             ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useCartStore } from "@/lib/cart/store";
 import { Button } from "@/components/ui/Button";
 
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/Button";
  */
 export function OrderModeButtons({ className = "" }: { className?: string }) {
   const router = useRouter();
+  const t = useTranslations("home");
   const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
 
   const start = (type: "delivery" | "pickup") => {
@@ -24,10 +26,10 @@ export function OrderModeButtons({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col gap-3 sm:flex-row ${className}`}>
       <Button size="lg" onClick={() => start("delivery")}>
-        Order Delivery
+        {t("orderDelivery")}
       </Button>
       <Button size="lg" variant="secondary" onClick={() => start("pickup")}>
-        Order Pickup
+        {t("orderPickup")}
       </Button>
     </div>
   );
