@@ -37,6 +37,7 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: PageProps<"/menu/[slug]">) {
   const t = await getTranslations("menu");
+  const ta = await getTranslations("allergens");
   const { slug } = await params;
   const item = await getMenuItemBySlug(slug);
 
@@ -157,12 +158,11 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
           {item.allergens.length > 0 && (
             <div className="mt-6 rounded-card border border-line bg-surface p-5">
               <h2 className="text-sm font-semibold text-ink">{t("allergens")}</h2>
-              <p className="mt-2 text-sm capitalize leading-relaxed text-ink-muted">
-                {item.allergens.join(", ")}
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+                {item.allergens.map((a) => ta(a)).join(", ")}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                Prepared in a kitchen that handles all major allergens. Call us
-                on anything critical.
+                {t("allergenKitchenNote")}
               </p>
             </div>
           )}
@@ -172,8 +172,7 @@ export default async function ProductPage({ params }: PageProps<"/menu/[slug]">)
               role="status"
               className="mt-6 rounded-control border border-line bg-surface-sunken p-4 text-sm text-ink-muted"
             >
-              This dish is sold out for now. Everything else on the menu is still
-              available.
+              {t("soldOutNote")}
             </p>
           )}
 

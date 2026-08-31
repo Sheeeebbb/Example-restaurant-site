@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { RESTAURANT } from "@/lib/config/restaurant";
 import type { OrderStatus } from "@/lib/types";
+import type { Locale } from "@/i18n/config";
 
 /**
  * Order lookup.
@@ -26,6 +27,7 @@ import type { OrderStatus } from "@/lib/types";
  */
 export function TrackOrderView() {
   const t = useTranslations("order");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const orders = useOrderStore((state) => state.orders);
   const hasHydrated = useOrderStore((state) => state.hasHydrated);
@@ -172,7 +174,7 @@ export function TrackOrderView() {
                       </span>
                     </span>
                     <span className="shrink-0 font-medium tabular-nums text-ink">
-                      {formatMoney(order.totals.total)}
+                      {formatMoney(order.totals.total, locale)}
                     </span>
                   </Link>
                 </li>

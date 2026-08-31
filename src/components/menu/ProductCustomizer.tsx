@@ -216,7 +216,7 @@ export function ProductCustomizer({
         }`}
       >
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 p-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
-          Add a note for the kitchen
+          {tp("addNote")}
           <span
             aria-hidden="true"
             className="text-ink-subtle transition-transform group-open:rotate-180"
@@ -227,8 +227,7 @@ export function ProductCustomizer({
 
         <div className="border-t border-line p-3">
           <label htmlFor="special-instructions" className="text-sm text-ink-muted">
-            Anything the kitchen should know. We&rsquo;ll do our best, but we
-            can&rsquo;t guarantee allergy-safe changes here — call us instead.
+            {tp("noteHint")}
           </label>
           <textarea
             id="special-instructions"

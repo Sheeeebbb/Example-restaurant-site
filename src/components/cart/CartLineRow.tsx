@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { FoodImage } from "@/components/menu/FoodImage";
 import { QuantityStepper } from "@/components/menu/QuantityStepper";
 import { formatMoney, formatDelta } from "@/lib/money";
 import type { CartLine } from "@/lib/types";
+import { translateContent, type ContentTranslator } from "@/i18n/content";
+import type { Locale } from "@/i18n/config";
 
 /**
  * One line in the cart.
@@ -34,6 +37,9 @@ export function CartLineRow({
   onRemove: (lineId: string) => void;
 }) {
   const lineTotal = line.unitPrice * line.quantity;
+  const to = useTranslations("options") as unknown as ContentTranslator;
+  const t = useTranslations("cart");
+  const locale = useLocale() as Locale;
   const paidExtras = line.selections.filter((s) => s.priceDelta !== 0);
   const includedChoices = line.selections.filter((s) => s.priceDelta === 0);
 
@@ -88,13 +94,15 @@ export function CartLineRow({
                 </Link>
               </h3>
               <p className="shrink-0 font-semibold tabular-nums text-ink">
-                {formatMoney(lineTotal)}
+                {formatMoney(lineTotal, locale)}
               </p>
             </div>
 
             {includedChoices.length > 0 && (
               <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-                {includedChoices.map((choice) => choice.name).join(" · ")}
+                {includedChoices
+                  .map((choice) => translateContent(to, choice.optionId, choice.name))
+                  .join(" · ")}
               </p>
             )}
 
@@ -102,9 +110,9 @@ export function CartLineRow({
               <ul className="mt-1 text-sm leading-relaxed text-ink-muted">
                 {paidExtras.map((extra) => (
                   <li key={`${extra.groupId}-${extra.optionId}`}>
-                    {extra.name}{" "}
+                    {translateContent(to, extra.optionId, extra.name)}{" "}
                     <span className="tabular-nums text-ink-subtle">
-                      {formatDelta(extra.priceDelta)}
+                      {formatDelta(extra.priceDelta, locale)}
                     </span>
                   </li>
                 ))}
@@ -135,16 +143,16 @@ export function CartLineRow({
                   beside them on a narrow phone. */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <p className="text-sm tabular-nums text-ink-subtle">
-                  {formatMoney(line.unitPrice)} each
+                  {t("eachPrice", { price: formatMoney(line.unitPrice, locale) })}
                 </p>
                 <button
                   type="button"
                   onClick={() => onRemove(line.lineId)}
                   disabled={leaving}
+                  aria-label={t("removeNamed", { item: line.name })}
                   className="min-h-9 rounded-control px-2 text-sm font-medium text-ink-muted underline-offset-4 transition-colors hover:text-danger hover:underline"
                 >
-                  Remove
-                  <span className="sr-only"> {line.name} from your cart</span>
+                  {t("remove")}
                 </button>
               </div>
             </div>

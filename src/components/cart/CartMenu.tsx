@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { useCartStore } from "@/lib/cart/store";
 import { useLineRemoval } from "@/lib/cart/use-line-removal";
 import { useCartSummary } from "@/lib/cart/selectors";
 import { formatMoney } from "@/lib/money";
+import type { Locale } from "@/i18n/config";
 
 /**
  * The cart, previewed from the header.
@@ -49,6 +50,7 @@ export function CartMenu({
   categoryByItemId: Record<string, string>;
 }) {
   const t = useTranslations("cart");
+  const locale = useLocale() as Locale;
   const pathname = usePathname();
   const lines = useCartStore((state) => state.lines);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
@@ -155,7 +157,7 @@ export function CartMenu({
                 {t("empty")}
               </p>
               <p className="mt-1 text-sm text-ink-muted">
-                Let&rsquo;s fix that. Pick your favorites from the menu.
+                {t("emptyMenuLead")}
               </p>
               <Link
                 href="/menu"
@@ -200,7 +202,7 @@ export function CartMenu({
                               {line.name}
                             </p>
                             <p className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                              {formatMoney(line.unitPrice * line.quantity)}
+                              {formatMoney(line.unitPrice * line.quantity, locale)}
                             </p>
                           </div>
 
@@ -230,12 +232,9 @@ export function CartMenu({
                               onClick={() => requestRemove(line.lineId)}
                               disabled={isLeaving(line.lineId)}
                               className="min-h-9 rounded-control px-1.5 text-xs font-medium text-ink-muted underline-offset-4 transition-colors hover:text-danger hover:underline"
+                              aria-label={t("removeNamed", { item: line.name })}
                             >
-                              Remove
-                              <span className="sr-only">
-                                {" "}
-                                {line.name} from your cart
-                              </span>
+                              {t("remove")}
                             </button>
                           </div>
                         </div>
@@ -255,7 +254,7 @@ export function CartMenu({
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-sm text-ink-muted">Subtotal</span>
                   <span className="font-display text-lg font-semibold tabular-nums text-ink">
-                    {formatMoney(summary.totals.subtotal)}
+                    {formatMoney(summary.totals.subtotal, locale)}
                   </span>
                 </div>
 

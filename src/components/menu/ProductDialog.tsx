@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useEffect, useRef, useState } from "react";
 import { FoodImage } from "./FoodImage";
@@ -8,6 +8,7 @@ import { ProductCustomizer } from "./ProductCustomizer";
 import { DietaryBadge } from "@/components/ui/Badge";
 import { photoCredit } from "@/lib/data/photography";
 import { formatMoney } from "@/lib/money";
+import type { Locale } from "@/i18n/config";
 import type { MenuItem } from "@/lib/types";
 
 /**
@@ -38,6 +39,8 @@ export function ProductDialog({
   onClose: () => void;
 }) {
   const t = useTranslations("menu");
+  const locale = useLocale() as Locale;
+  const ta = useTranslations("allergens");
   const dialogRef = useRef<HTMLDialogElement>(null);
   // Handed to the customiser so it can render its add button into the footer
   // below, which stays put while the body scrolls.
@@ -131,7 +134,7 @@ export function ProductDialog({
             onClick={onClose}
             className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-line bg-paper/90 text-ink shadow-card backdrop-blur-sm transition-colors hover:bg-surface-sunken"
           >
-            <span className="sr-only">Close {item.name}</span>
+            <span className="sr-only">{t("closeDishNamed", { item: item.name })}</span>
             <svg
               viewBox="0 0 20 20"
               fill="none"
@@ -203,7 +206,7 @@ export function ProductDialog({
                   {item.name}
                 </h2>
                 <p className="shrink-0 text-xl font-semibold tabular-nums text-ink sm:text-2xl">
-                  {formatMoney(item.basePrice)}
+                  {formatMoney(item.basePrice, locale)}
                 </p>
               </div>
 
@@ -230,23 +233,23 @@ export function ProductDialog({
               <div className="mt-5 rounded-control border border-line bg-surface p-4">
                 <h3 className="text-sm font-semibold text-ink">{t("allergens")}</h3>
                 {item.allergens.length > 0 ? (
-                  <p className="mt-1.5 text-sm capitalize leading-relaxed text-ink-muted">
-                    {item.allergens.join(", ")}
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+                    {/* The stored values are language-neutral ("milk"); the
+                        words come from the catalogue. */}
+                    {item.allergens.map((a) => ta(a)).join(", ")}
                   </p>
                 ) : (
                   <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
-                    No listed allergens.
+                    {t("allergenNone")}
                   </p>
                 )}
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
-                  Prepared in a kitchen that handles all major allergens. Call us
-                  on anything critical.
+                  {t("allergenKitchenNote")}
                 </p>
               </div>
 
               <p className="mt-3 text-sm text-ink-subtle">
-                Cooked to order · about {item.kitchenMinutes}{" "}
-                {item.kitchenMinutes === 1 ? "minute" : "minutes"} in the kitchen
+                {t("cookedToOrder", { minutes: item.kitchenMinutes })}
               </p>
 
               {!item.available && (
@@ -254,8 +257,7 @@ export function ProductDialog({
                   role="status"
                   className="mt-5 rounded-control border border-line bg-surface-sunken p-4 text-sm text-ink-muted"
                 >
-                  This dish is sold out for now. Everything else on the menu is
-                  still available.
+                  {t("soldOutNote")}
                 </p>
               )}
 

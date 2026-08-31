@@ -409,8 +409,11 @@ export function CustomerForm({
 
       {fulfillmentType === "pickup" && (
         <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-          Collect from {RESTAURANT.address.line1}, {RESTAURANT.address.postalCode}{" "}
-          {RESTAURANT.address.city}. We&rsquo;ll text you when it&rsquo;s ready.
+          {t("cart.collectFrom", {
+            address: RESTAURANT.address.line1,
+            postalCode: RESTAURANT.address.postalCode,
+            city: RESTAURANT.address.city,
+          })}
         </p>
       )}
     </div>

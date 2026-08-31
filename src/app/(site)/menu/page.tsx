@@ -90,10 +90,10 @@ export default async function MenuPage() {
         {sections.length === 0 ? (
           <div className="rounded-card border border-line bg-surface p-10 text-center">
             <p className="font-display text-xl font-semibold text-ink">
-              The menu is empty
+              {th("empty")}
             </p>
             <p className="mt-2 text-ink-muted">
-              Nothing is listed right now. Please check back shortly.
+              {th("emptyBody")}
             </p>
           </div>
         ) : (

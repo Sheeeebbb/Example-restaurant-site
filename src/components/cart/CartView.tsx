@@ -165,9 +165,9 @@ export function CartView({
           {t("cart.title")}
         </h1>
         <p className="mt-2 text-ink-muted">
-          {summary.itemCount} {summary.itemCount === 1 ? "item" : "items"} ·{" "}
+          {t("cart.itemCount", { count: summary.itemCount })} ·{" "}
           <Link href="/menu" className="underline underline-offset-4 hover:text-ink">
-            add something else
+            {t("cart.addSomethingElse")}
           </Link>
         </p>
 
@@ -191,7 +191,7 @@ export function CartView({
           <div className="min-w-0">
             <section aria-labelledby="items-heading">
               <h2 id="items-heading" className="sr-only">
-                Items in your cart
+                {t("cart.itemsInCart")}
               </h2>
               <ul className="divide-y divide-line border-y border-line">
                 {lines.map((line) => (
@@ -211,21 +211,21 @@ export function CartView({
             <div className="mt-10 space-y-10">
               <section aria-labelledby="fulfillment-heading">
                 <h2 id="fulfillment-heading" className="sr-only">
-                  Delivery or pickup
+                  {t("cart.fulfillmentHeading")}
                 </h2>
                 <FulfillmentToggle />
               </section>
 
               <section aria-labelledby="timing-heading">
                 <h2 id="timing-heading" className="sr-only">
-                  Timing
+                  {t("checkout.timing")}
                 </h2>
                 <TimingPicker error={showErrors ? timingError : null} />
               </section>
 
               <section aria-labelledby="details-heading">
                 <h2 id="details-heading" className="sr-only">
-                  Your details
+                  {t("checkout.contactDetails")}
                 </h2>
                 <CustomerForm
                   addressLookupEnabled={addressLookupEnabled}

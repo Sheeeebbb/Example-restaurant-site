@@ -1,5 +1,6 @@
 import type { MenuItem, OptionGroup, SelectedOption } from "../types";
 import { calculateUnitPrice, findUnsatisfiedGroups } from "./lines";
+import { englishMessages, type Messages } from "../../i18n/messages";
 
 /**
  * Product customisation state, as pure functions.
@@ -138,10 +139,14 @@ export function isGroupAtCapacity(
  * Rendered next to the group heading so the constraint is visible before someone
  * runs into it.
  */
-export function groupRuleLabel(group: OptionGroup): string {
-  if (group.required) return "Required";
+export function groupRuleLabel(
+  group: OptionGroup,
+  /** The customer's language; English by default, as elsewhere. */
+  t: Messages = englishMessages,
+): string {
+  if (group.required) return t("product.required");
   if (group.selection === "multi" && group.maxSelections < group.options.length) {
-    return `Pick up to ${group.maxSelections}`;
+    return t("product.pickUpTo", { count: group.maxSelections });
   }
-  return "Optional";
+  return t("product.optional");
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { formatDelta } from "@/lib/money";
+import { useTranslations } from "next-intl";
+import { fromNextIntl } from "@/i18n/messages";
+import { translateContent, type ContentTranslator } from "@/i18n/content";
 import { groupRuleLabel, isGroupAtCapacity } from "@/lib/cart/customization";
 import type { SelectionState } from "@/lib/cart/customization";
 import type { OptionGroup } from "@/lib/types";
@@ -32,6 +35,14 @@ export function OptionGroupField({
   invalid: boolean;
   errorId: string;
 }) {
+  const t = useTranslations("product");
+  const tg = useTranslations("optionGroups") as unknown as ContentTranslator;
+  const to = useTranslations("options") as unknown as ContentTranslator;
+  const tRoot = useTranslations();
+  const messages = fromNextIntl(
+    tRoot as (k: string, v?: Record<string, string | number>) => string,
+  );
+
   const selected = state[group.id] ?? [];
   const atCapacity = isGroupAtCapacity(group, state);
   const isRadio = group.selection === "single";
@@ -44,24 +55,26 @@ export function OptionGroupField({
     >
       <legend className="mb-1 flex w-full flex-wrap items-baseline justify-between gap-2">
         <span className="font-display text-lg font-semibold text-ink">
-          {group.name}
+          {translateContent(tg, group.id, group.name)}
         </span>
         <span
           className={`text-xs font-medium ${
             invalid ? "text-danger" : "text-ink-subtle"
           }`}
         >
-          {groupRuleLabel(group)}
+          {groupRuleLabel(group, messages)}
         </span>
       </legend>
 
       {group.description && (
-        <p className="mb-3 text-sm text-ink-muted">{group.description}</p>
+        <p className="mb-3 text-sm text-ink-muted">
+          {translateContent(tg, `${group.id}__description`, group.description)}
+        </p>
       )}
 
       {invalid && (
         <p id={errorId} className="mb-3 text-sm font-medium text-danger">
-          Choose an option to continue.
+          {t("chooseToContinue")}
         </p>
       )}
 
@@ -129,7 +142,7 @@ export function OptionGroupField({
               </span>
 
               <span className="flex-1 text-sm font-medium text-ink">
-                {option.name}
+                {translateContent(to, option.id, option.name)}
                 {!option.available && (
                   <span className="ml-2 text-xs font-normal text-ink-subtle">
                     Unavailable
