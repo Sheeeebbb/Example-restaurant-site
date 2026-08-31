@@ -16,6 +16,11 @@ export default defineConfig({
      * of that is the deliberately slow password hashing.
      */
     fileParallelism: false,
+    /*
+     * Reads .env.local before any test runs, so `TEST_DATABASE_URL` reaches the
+     * persistence suite the same way `DATABASE_URL` reaches `next dev`.
+     */
+    setupFiles: ["./src/lib/db/test-env.ts"],
   },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

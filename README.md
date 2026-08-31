@@ -48,16 +48,28 @@ docker run -d --name urban-table-db -p 5432:5432 \
   -e POSTGRES_USER=urbantable -e POSTGRES_PASSWORD=localdev \
   -e POSTGRES_DB=urban_table postgres:16
 
-# 2. Point the app at it.
+# 2. Point the app at it. Copy the file, then EDIT DATABASE_URL: the example
+#    ships a CHANGE_ME placeholder rather than a password, so it will not
+#    connect until you replace it with the one you chose above.
 cp .env.example .env.local
 #    DATABASE_URL=postgresql://urbantable:localdev@localhost:5432/urban_table
 
-# 3. Create the schema and fill it.
+# 3. Create the schema and fill it. Reads .env.local, same as `next dev`.
 npm run db:setup
 
 # 4. Go.
 npm run dev
 ```
+
+On **Windows**, run the `docker run` as one line (PowerShell and cmd do not
+continue on `\`), and use `copy .env.example .env.local` instead of `cp`. The
+`npm run` commands are identical. Docker Desktop must be running, and Postgres
+only has to be reachable from the computer — a phone on the LAN talks to
+Next.js, never to the database.
+
+Running Postgres natively instead of in Docker works just as well: create the
+role and database once (`CREATE ROLE urbantable LOGIN PASSWORD '…';`
+`CREATE DATABASE urban_table OWNER urbantable;`) and point `DATABASE_URL` at it.
 
 | Command | What it does |
 | --- | --- |
@@ -78,11 +90,29 @@ database and is changed through the staff screens.
 persistence, and those are integration tests on purpose. "An order survives a
 restart" is not a property a fake can demonstrate.
 
+Those tests truncate every table between cases, so they use `TEST_DATABASE_URL`
+— a **separate** database from the one you develop against:
+
+```bash
+docker exec -it urban-table-db psql -U urbantable -d urban_table \
+  -c "CREATE DATABASE urban_table_test OWNER urbantable;"
+#   then in .env.local:
+#   TEST_DATABASE_URL=postgresql://urbantable:localdev@localhost:5432/urban_table_test
+```
+
+`npm test` reads `.env.local` for it. If you leave it unset the suite falls back
+to `DATABASE_URL` and accepts it only when the database name contains "test" —
+`urban_table` is refused rather than emptied.
+
 ### Configuration
 
 Everything the application reads from the environment is listed in
 [`.env.example`](.env.example). Copy it to `.env.local` to change any of it.
-**Nothing in it is required** — the defaults run the whole site.
+
+**`DATABASE_URL` is required** — the site stores its menu, orders and staff in
+Postgres, so without it every page that reads data fails with
+`DatabaseNotConfiguredError`. See [The database](#the-database) above. Everything
+else in the file is optional and has a working default.
 
 The one worth knowing about is address lookup.
 

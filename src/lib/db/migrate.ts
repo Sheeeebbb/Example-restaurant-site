@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import path from "node:path";
 import { closeDb, getDb } from "./client";
+import { loadEnv } from "./load-env";
 
 /**
  * Applies every migration in `drizzle/` that has not run yet.
@@ -18,6 +19,8 @@ export async function runMigrations(): Promise<void> {
 
 /** `npm run db:migrate` */
 if (process.argv[1]?.endsWith("migrate.ts") || process.env.RUN_MIGRATIONS_CLI) {
+  // `tsx` is not Next, so nothing has read .env.local yet.
+  loadEnv();
   runMigrations()
     .then(async () => {
       console.log("Migrations applied.");

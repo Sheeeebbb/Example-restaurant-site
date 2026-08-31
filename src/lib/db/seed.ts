@@ -6,6 +6,7 @@ import { CATEGORIES, MENU_ITEMS } from "../data/menu";
 import { CATEGORY_NL, MENU_ITEM_NL } from "../data/menu-nl";
 import { PERMISSION_CATALOGUE, ALL_PERMISSIONS } from "../staff/permissions";
 import { hashPassword } from "../staff/password";
+import { loadEnv } from "./load-env";
 
 /**
  * Seeding and data migrations.
@@ -440,6 +441,8 @@ export async function resetDatabase(db: Db = getDb()): Promise<void> {
 /* ── CLI ──────────────────────────────────────────────────────────────────── */
 
 if (process.argv[1]?.endsWith("seed.ts")) {
+  // `tsx` is not Next, so nothing has read .env.local yet.
+  loadEnv();
   const mode = process.argv[2] ?? "seed";
   const run = async () => {
     if (mode === "reset") {
